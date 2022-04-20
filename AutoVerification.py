@@ -844,7 +844,7 @@ class AutoVerification:
 
         def getVesselParams(vessel, obst):
             if not vessel.maneuvers_found:
-                printer_on = False  # Toggle printer ####
+                printer_on = True  # Toggle printer ####
 
                 self.find_maneuver_detect_index(vessel)
                 maneuver_flag = True
@@ -852,16 +852,17 @@ class AutoVerification:
 
                 if printer_on:
                     print("\n\n")
-                    print(vessel.maneuver_start_stop)
-                    print("Start:", start_idx, " stop:", stop_idx)
-                
-                man_inside = (start_idx < vessel.maneuver_start_stop[:, 0]) if len(
+                    print("Maneuver start stop ", vessel.maneuver_start_stop)
+                    print(" COLREGS start:", start_idx, " stop:", stop_idx)
+
+                man_inside = ((start_idx < vessel.maneuver_start_stop[:, 0]) & (
+                            stop_idx > vessel.maneuver_start_stop[:, 0])) if len(
                     vessel.maneuver_detect_idx) > 0 else np.array([], dtype=bool)
                 man_inside = np.array(man_inside)
 
                 if printer_on:
                     print(man_inside)
-                    print(vessel.maneuver_detect_idx[man_inside])
+                    print("Maneuver_detect_idx: ", vessel.maneuver_detect_idx[man_inside])
 
                 i = 0
                 man_number = 0
@@ -904,7 +905,7 @@ class AutoVerification:
 
                         if printer_on:
                             print("NEW BEST")
-                        maneuver_idx = vessel.maneuver_detect_idx[i]
+                        maneuver_idx = vessel.maneuver_start_stop[i][0]
                         man_number = i
                         pre_man_dist, pre_man_t_cpa = range_val_start, time_to_cpa_start
                         post_man_dist, post_man_t_cpa = range_val_stop, time_to_cpa_stop
@@ -919,7 +920,7 @@ class AutoVerification:
                 elif len(vessel.maneuver_detect_idx[man_inside]) == 1:
                     for inside in man_inside:
                         if inside:
-                            maneuver_idx = vessel.maneuver_detect_idx[i]
+                            maneuver_idx = vessel.maneuver_start_stop[i][0]
                             man_number = i
                             pre_man_dist, pre_man_t_cpa = calcPredictedCPA(vessel, obst,
                                                                            vessel.maneuver_start_stop[i][0])
