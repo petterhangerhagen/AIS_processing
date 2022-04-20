@@ -844,16 +844,14 @@ class AutoVerification:
 
         def getVesselParams(vessel, obst):
             if not vessel.maneuvers_found:
-                printer_on = True  # Toggle printer ####
+                printer_on = True  # Toggle printer
 
                 self.find_maneuver_detect_index(vessel)
-                maneuver_flag = True
-                multi_man = False
 
                 if printer_on:
                     print("\n\n")
-                    print("Maneuver start stop ", vessel.maneuver_start_stop)
-                    print(" COLREGS start:", start_idx, " stop:", stop_idx)
+                    print("Maneuver [start stop]: ", vessel.maneuver_start_stop)
+                    print("COLREGS start: ", start_idx, " stop: ", stop_idx)
 
                 man_inside = ((start_idx < vessel.maneuver_start_stop[:, 0]) & (
                             stop_idx > vessel.maneuver_start_stop[:, 0])) if len(
@@ -861,8 +859,11 @@ class AutoVerification:
                 man_inside = np.array(man_inside)
 
                 if printer_on:
-                    print(man_inside)
+                    print("Maneuver inside COLREGS situation: ", man_inside)
                     print("Maneuver_detect_idx: ", vessel.maneuver_detect_idx[man_inside])
+
+                maneuver_flag = True
+                multi_man = False
 
                 i = 0
                 man_number = 0
@@ -926,6 +927,7 @@ class AutoVerification:
                                                                            vessel.maneuver_start_stop[i][0])
                             post_man_dist, post_man_t_cpa = calcPredictedCPA(vessel, obst,
                                                                              vessel.maneuver_start_stop[i][1])
+
                             if np.isnan(pre_man_dist) or \
                                     np.isnan(post_man_dist):
                                 break
@@ -934,12 +936,6 @@ class AutoVerification:
                         i += 1
                 else:
                     maneuver_flag = False
-
-                if pre_man_t_cpa is not None:
-                    pre_man_t_cpa -= maneuver_idx
-
-                if post_man_t_cpa is not None:
-                    post_man_t_cpa -= maneuver_idx
 
                 return maneuver_flag, man_number, maneuver_idx, multi_man, pre_man_dist, pre_man_t_cpa, post_man_dist, post_man_t_cpa
 
