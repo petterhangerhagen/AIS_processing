@@ -855,8 +855,7 @@ class AutoVerification:
                     print(vessel.maneuver_start_stop)
                     print("Start:", start_idx, " stop:", stop_idx)
                 
-                man_inside = ((start_idx < vessel.maneuver_start_stop[:, 0]) &
-                              (stop_idx > vessel.maneuver_start_stop[:, 1])) if len(
+                man_inside = (start_idx < vessel.maneuver_start_stop[:, 0]) if len(
                     vessel.maneuver_detect_idx) > 0 else np.array([], dtype=bool)
                 man_inside = np.array(man_inside)
 
