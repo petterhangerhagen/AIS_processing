@@ -1,0 +1,11 @@
+superPara.csv
+encs_north/*
+encs_south/*
+para/*
+t.py
+y.py
+wheel.py
+TODO.txt
+*.sw
+__pycache__/*
+.DS_Store
