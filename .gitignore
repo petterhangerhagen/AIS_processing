@@ -9,3 +9,5 @@ TODO.txt
 *.sw
 __pycache__/*
 .DS_Store
+/AV_class_functions/__pycache__/*
+
