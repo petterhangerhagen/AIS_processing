@@ -3,12 +3,13 @@ import pandas as pd
 import datetime
 import matplotlib.pyplot as plt
 import warnings
+from AV_class_functions.helper_methods import *
 
 from matplotlib import cm
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
+
 
 warnings.filterwarnings("ignore")
-
 
 class AutoVerification:
     # "Constants"
@@ -23,16 +24,13 @@ class AutoVerification:
     HO = 3  # Head on situation
 
     def __init__(self,
-                 AIS_path=[],
+                 ais_path=[],
                  ship_path=[],
                  r_colregs_2_max=5000,
                  r_colregs_3_max=3000,
                  r_colregs_4_max=400,
                  epsilon_course=4,
                  epsilon_speed=0.5,
-                 delta_chi_md=0,
-                 delta_psi_md=2,
-                 delta_speed_md=0.2,
                  alpha_critical_13=45.0,
                  alpha_critical_14=30.0,
                  alpha_critical_15=0.0,
@@ -41,8 +39,8 @@ class AutoVerification:
                  phi_SB_lim=-20.0):
 
         """
-        :param AIS_path: relative path to .csv file containing encounter data
-        :type AIS_path: str
+        :param ais_path: relative path to .csv file containing encounter data
+        :type ais_path: str
         :param ship_path: relative path to .csv file containing ship information
         :type ship_path: str
         :param r_colregs_2_max: [m] Maximum range for COLREGS stage 2.
@@ -80,20 +78,20 @@ class AutoVerification:
         #    self.using_coastline = False 
 
         self.vessels = []
-        if len(AIS_path) != 0:
-            self.read_AIS(AIS_path, ship_path)
+        if len(ais_path) != 0:
+            self.read_AIS(ais_path, ship_path)
 
         # Just a slightly convoluted method of storing case name/code
-        case_name = AIS_path.replace("-sec.csv", "")
+        case_name = ais_path.replace("-sec.csv", "")
         self.case_name = case_name
         for i in reversed(range(len(case_name))):
-            if AIS_path[i] == "-":
+            if ais_path[i] == "-":
                 self.case_name = case_name.replace(case_name[i - len(case_name):], "")[-5:]
                 break
 
         self.n_vessels = len(self.vessels)
         if self.n_vessels == 0:
-            print("No vessels in file:", AIS_path)
+            print("No vessels in file:", ais_path)
             return
 
         # todo: find better way of getting equal number of messages
@@ -133,10 +131,6 @@ class AutoVerification:
         # New attributes
         self.alpha = np.zeros([self.n_vessels, self.n_vessels, self.n_msgs])
         self.beta = np.zeros([self.n_vessels, self.n_vessels, self.n_msgs])
-
-    # Functions for calculating necessary parameters -------------------------------------------------------------------
-    from AV_class_functions._parameter_calc import find_ranges, find_relative_heading, \
-        find_maneuver_detect_index, find_course_and_speed_alteration
 
     # Functions for determining applicable rules -----------------------------------------------------------------------
     def determine_situations(self, vessel):
@@ -516,6 +510,196 @@ class AutoVerification:
 
         return self.situation_matrix[vessel.id, obst.id, :]
 
+    # Functions for calculating necessary parameters -------------------------------------------------------------------
+    def find_ranges(self):
+        """
+        Calculate ranges between all vessels. Also finds index of obstacle detection and CPA.
+        Sets the ranges_set parameter to True.
+        """
+        for vessel in self.vessels:
+            for obst in self.vessels:
+                if vessel.id < obst.id:
+                    for i in range(self.n_msgs):
+                        self.ranges[(vessel.id, obst.id), (obst.id, vessel.id), i] = \
+                            np.linalg.norm(vessel.state[0:2, i] - obst.state[0:2, i])
+                    self.detection_idx[(vessel.id, obst.id), (obst.id, vessel.id)] = \
+                        np.argmax(self.ranges[vessel.id, obst.id] <= self.r_detect)
+                    r_cpa = np.min(self.ranges[vessel.id, obst.id])
+                    self.cpa_idx[(vessel.id, obst.id), (obst.id, vessel.id)] = \
+                        np.argmax(self.ranges[vessel.id, obst.id] == r_cpa)
+        self.ranges_set = True
+
+    def find_relative_heading(self):
+        """
+        Find the relative bearings between the vessels (alpha and beta values) at CPA. The row and column number
+        signifies the own ship and obstacle vessel index respectively.
+        Sets the relative_bearing_set parameter to True.
+        """
+        for vessel in self.vessels:
+            for obst in self.vessels:
+                if vessel.id < obst.id:
+                    cpa_idx = self.cpa_idx[vessel.id, obst.id]
+                    dist_to_obst = np.empty(2)
+                    dist_to_obst[0] = obst.state[0, cpa_idx] - vessel.state[0, cpa_idx]
+                    dist_to_obst[1] = obst.state[1, cpa_idx] - vessel.state[1, cpa_idx]
+
+                    # Viewed from vessel
+                    self.alpha_cpa[vessel.id, obst.id] = normalize_pi(
+                        normalize_2pi(np.arctan2(-dist_to_obst[1], -dist_to_obst[0])) - obst.state[2, cpa_idx])  # alpha
+                    self.beta_cpa[vessel.id, obst.id] = normalize_2pi(
+                        normalize_2pi(np.arctan2(dist_to_obst[1], dist_to_obst[0])) - vessel.state[2, cpa_idx])  # beta
+
+                    # Viewed from obst
+                    self.alpha_cpa[obst.id, vessel.id] = normalize_pi(
+                        normalize_2pi(np.arctan2(dist_to_obst[1], dist_to_obst[0])) - vessel.state[2, cpa_idx])  # alpha
+                    self.beta_cpa[obst.id, vessel.id] = normalize_2pi(
+                        normalize_2pi(np.arctan2(-dist_to_obst[1], -dist_to_obst[0])) - obst.state[2, cpa_idx])  # beta
+
+        self.relative_heading_set = True
+
+    def find_maneuver_detect_index(self, vessel):
+        """
+        Find indices i where the vessel's speed and/or course change exceeds epsilon_speed and/or epsilon_course
+        respectively. The change is defined as the difference between the speed/course at index i and
+        index i + step_length, where the step length is defined by the sample frequency of the own_ship's state such
+        that the time between sample i and i + step_length is one second.
+        """
+        # TODO: Set limits as class parameters instead of hardcoded values.
+        if vessel.maneuvers_searched:
+            return
+
+        if vessel.travel_dist < 1000:
+            vessel.maneuver_detect_idx = np.array([])
+            vessel.delta_course = vessel.delta_course([])
+            vessel.delta_speed = []
+            vessel.maneuvers_searched = True
+            return
+
+        vessel.maneuvers_searched = True  # Assure that computation is only done once
+
+        step_length = 1
+        i_maneuver_detect = np.array([])
+        second_der_zeroes = np.array([])
+        cont_man = False
+
+        for i in range(vessel.n_msgs - step_length):
+            if i > 0:
+                if np.sign(vessel.maneuver_der[0, i]) != np.sign(vessel.maneuver_der[0, i - 1]) \
+                        or np.sign(vessel.maneuver_der[2, i]) != np.sign(vessel.maneuver_der[2, i - 1]):
+                    cont_man = False
+            if np.abs(vessel.maneuver_der[0, i]) < 0.01:
+                continue
+
+            if np.abs(vessel.maneuver_der[1, i]) > 0.01 and np.sign(vessel.maneuver_der[1, i]) == np.sign(
+                    vessel.maneuver_der[1, i - 1]):
+                continue
+                # TODO: Figure out what to do with this unreachable statement.
+                second_der_zeroes = np.concatenate([second_der_zeroes, [i]])
+
+            if np.abs(vessel.maneuver_der[2, i]) < 0.005:
+                continue
+            if np.sign(vessel.maneuver_der[0, i]) == np.sign(vessel.maneuver_der[2, i]):
+                continue
+            if not cont_man:
+                cont_man = True
+                i_maneuver_detect = np.concatenate([i_maneuver_detect, [i]])
+                second_der_zeroes = second_der_zeroes[-1:]
+
+        i_maneuver_detect = [int(i) for i in i_maneuver_detect]
+
+        speed_changes = [1 if vessel.speed_der[i] > self.epsilon_speed else 0 for i in range(len(vessel.speed_der))]
+        speed_maneuvers = []
+        start, stop = 0, 0
+        in_man = False
+
+        for i, v in enumerate(speed_changes):
+            if not in_man:
+                if v == 1:
+                    start = i
+                    in_man = True
+            else:
+                if v == 0:
+                    stop = i - 1
+                    in_man = False
+
+                    speed_maneuvers.append([start, stop])
+
+        delta_course_list = []
+        delta_speed_list = []
+        maneuver_idx_list = []
+        maneuver_start_stop = []
+
+        third_derivative_zeroes_bool = [
+            np.sign(vessel.maneuver_der[2, i]) != np.sign(vessel.maneuver_der[2, i + 1]) or vessel.maneuver_der[
+                2, i] == 0
+            for i in range(len(vessel.maneuver_der[2, :]) - 1)]
+        third_derivative_zeroes_bool = np.append(third_derivative_zeroes_bool, [False])
+
+        third_derivative_zero_idx = np.array([i if b else 0 for i, b in enumerate(third_derivative_zeroes_bool)])
+        third_derivative_zero_idx = third_derivative_zero_idx[third_derivative_zero_idx != 0]
+
+        while len(i_maneuver_detect) > 0:
+            i = i_maneuver_detect[0]
+
+            above = third_derivative_zero_idx[third_derivative_zero_idx > i]
+            below = third_derivative_zero_idx[third_derivative_zero_idx < i]
+
+            val_above = int(above[0]) if len(above) > 0 else 0
+            val_below = int(below[-1]) if len(below) > 0 else -1
+
+            remove_course = True
+            remove_speed = False
+
+            if len(speed_maneuvers) > 0:
+                if val_below > speed_maneuvers[0][1]:  # > start
+                    if len(i_maneuver_detect) == 1:
+                        remove_course = False
+                        remove_speed = True
+                        val_below = speed_maneuvers[0][0]
+                        val_above = speed_maneuvers[0][1]
+                        i = val_above
+                else:
+                    remove_speed = True
+                    if val_above > speed_maneuvers[0][0]:
+                        remove_course = False  # speed maneuver before course maneuver
+                        val_below = speed_maneuvers[0][0]
+                        val_above = speed_maneuvers[0][1]
+                        i = val_above
+                    else:
+                        val_above = min(val_above, speed_maneuvers[0][0])
+                        val_below = max(val_below, speed_maneuvers[0][1])
+
+            delta_course_list.append(np.sum(vessel.maneuver_der[0, val_below:val_above + 1]))
+            delta_speed_list.append(np.sum(vessel.speed_der[val_below:val_above + 1]))
+            maneuver_idx_list.append(i)
+            maneuver_start_stop.append([val_below, val_above + 1])
+
+            if remove_course:
+                i_maneuver_detect.pop(0)
+            if remove_speed:
+                speed_maneuvers.pop(0)
+
+        i = 0
+        remove = False
+        mask = np.array([1] * len(maneuver_idx_list), dtype=bool)
+
+        for item in maneuver_start_stop:
+            if item in maneuver_start_stop[0:i]:
+                remove = True
+                mask[i] = False
+            i += 1
+
+        if remove:
+            maneuver_idx_list = np.array(maneuver_idx_list)[mask]
+            maneuver_start_stop = np.array(maneuver_start_stop)[mask]
+            delta_course_list = np.array(delta_course_list)[mask]
+            delta_speed_list = np.array(delta_speed_list)[mask]
+
+        vessel.maneuver_detect_idx = np.array(maneuver_idx_list)
+        vessel.maneuver_start_stop = np.array(maneuver_start_stop)
+        vessel.delta_course = delta_course_list
+        vessel.delta_speed = delta_speed_list
+
     def constructParams(self, own_vessel, obst_vessel, start_idx, stop_idx):
         """Takes the timespan of a COLREG situation and returns ownship info, obstacle info, and parameters for
         any maneuvers made by ownship. Output is returned as a Parameters-object.
@@ -773,11 +957,11 @@ class AutoVerification:
                             stop_idx)
         return params
 
-    def read_AIS(self, AIS_path, ship_path):
+    def read_AIS(self, ais_path, ship_path):
         '''
         :param AIS_path, ship_path: Paths to AIS-data/ship_info-data
         '''
-        ais_df = pd.read_csv(AIS_path, sep=';', dtype={'mmsi': 'uint32', 'sog': 'float16', \
+        ais_df = pd.read_csv(ais_path, sep=';', dtype={'mmsi': 'uint32', 'sog': 'float16', \
                                                        'cog': 'float16'}, \
                              parse_dates=['date_time_utc'], infer_datetime_format=True, na_values='')
         if len(ship_path) != 0:
@@ -1137,300 +1321,300 @@ class AutoVerification:
         plt.show()
 
 
-# Helper metods --------------------------------------------------------------------------------------------------------
-def rotate(vec, ang):
-    """
-    :param vec: 2D vector
-    :param ang: angle in radians
-    :return: input vector rotated by the input angle
-    """
-    r_mat = np.array([[np.cos(ang), -np.sin(ang)], [np.sin(ang), np.cos(ang)]])
-    rot_vec = np.dot(r_mat, vec)
-    return rot_vec
-
-
-def normalize_2pi(angle):
-    """
-    :param angle: Angle in radians
-    :type angle: float
-    :return: Angle in radians normalized to [0, 2*pi)
-    """
-
-    if np.isnan(angle):
-        return np.nan
-    else:
-        while angle >= 2 * np.pi:
-            angle -= 2 * np.pi
-        while angle < 0:
-            angle += 2 * np.pi
-        return angle
-
-
-def normalize_pi(angle):
-    """
-    :param angle: Angle in radians
-    :type angle: float
-    :return: Angle in radians normalized to [-pi, pi)
-    """
-
-    if np.isnan(angle):
-        return np.nan
-    else:
-        while angle >= np.pi:
-            angle -= 2 * np.pi
-        while angle < -np.pi:
-            angle += 2 * np.pi
-        return angle
-
-
-def normalize_360_deg(angle):
-    """
-    :param angle: Angle in degrees
-    :type angle: float
-    :return: Angle in degrees normalized to [0, 360)
-    """
-
-    if np.isnan(angle):
-        return np.nan
-    else:
-        while angle >= 360:
-            angle -= 360
-        while angle < 0:
-            angle += 360
-        return angle
-
-
-def normalize_180_deg(angle):
-    """
-    :param angle: Angle in degrees
-    :type angle: float
-    :return: Angle in degrees normalized to [-180, 180)
-    """
-    if np.isnan(angle):
-        return np.nan
-    else:
-        while angle >= 180:
-            angle -= 2 * 180
-        while angle < -180:
-            angle += 2 * 180
-        return angle
-
-
-def abs_ang_diff(minuend, subtrahend):
-    """
-    Returns the smallest difference between two angles
-    :param minuend: Angle in [0,2*pi]
-    :param subtrahend: Angle in [0,2*pi]
-    :return: Angle in [0,2*pi]
-    """
-
-    if np.isnan(minuend) or np.isnan(subtrahend):
-        return 2 * np.pi
-    return np.pi - abs(abs(minuend - subtrahend) - np.pi)
-
-
-def signed_ang_diff(minuend, subtrahend):
-    """
-    Returns the signed difference between two angles
-    :param minuend: Angle in [0,2*pi]
-    :param subtrahend: Angle in [0,2*pi]
-    :return: Angle in [-2*pi, 2*pi]
-    """
-
-    diff = minuend - subtrahend
-    diff = (diff + np.pi) % (2 * np.pi) - np.pi
-    return diff
-
-
-def format_func(value, tick_number):
-    # find number of multiples of pi/4
-    N = int(np.round(4 * value / np.pi))
-    if N == 0:
-        return "0"
-    elif N == 1:
-        return r"$\pi/4$"
-    elif N == 2:
-        return r"$\pi/2$"
-    elif N == 3:
-        return r"${0}\pi/4$".format(N)
-    elif N % 4 > 0:
-        return r"${0}\pi/4$".format(N)
-    else:
-        return r"${0}\pi$".format(N // 4)
-
-
-def getMmsiList(df):
-    """
-    Returns a list of all different mmsi contained in DataFrame
-    :param df: DataFrame containing AIS_data
-    :type df: pandas DataFrame
-    :return: List of mmsi [mmsi_1, mmsi_2,..., mmsi_n]
-    """
-    temp_list = df.mmsi.unique().tolist()
-    return temp_list
-
-
-def getListOfMmsiDf(df):
-    """
-    Returns a list of DataFrames, where each DataFrame contains AIS_data for a ship
-    :param df: DataFrame containing AIS_data
-    :type df: pandas DataFrame
-    :return: List of mmsi [DF_mmsi_1, DF_mmsi_2,..., DF_mmsi_n]
-    """
-    mmsiList = getMmsiList(df)
-    mmsiDfList = [df[df.mmsi == mmsi].reset_index(drop=True) for mmsi in mmsiList]
-    return mmsiDfList
-
-
-def knots_to_mps(knots):
-    """
-    Transform velocity from knots to m/s
-    :type knots: float
-    :return: Velocity given in m/s (float)
-    """
-    if np.isnan(knots) or (knots >= 102.3):
-        return np.nan
-    mps = knots * 1.852 / 3.6
-    return mps
-
-
-def knots_to_kmph(knots):
-    """
-    Transform velocity from knots to km/h
-    :type knots: float
-    :return: Velocity given in km/h (float)
-    """
-    if np.isnan(knots) or (knots >= 102.3):
-        return np.nan
-    kmph = knots * 1.852
-    return kmph
-
-
-def getDisToMeter(lon1, lat1, lon2, lat2, **kwarg):
-    """
-    Find the distance between two lon/lat - coordinates given in meters
-    :type lon1, lat1, lon2, lat2: float
-    :return: Distance given in meters (float)
-    """
-    if lon1 == lon2:
-        d_simple = abs(lat1 - lat2) * 111040
-        return round(d_simple, 1)
-
-    if lat1 == lat2:
-        d_simple = abs(lon1 - lon2) * 6362.132 * 1000 * np.pi * 2 * np.cos(np.deg2rad(lat1)) / 360
-        return round(d_simple, 1)
-
-    if np.isnan(lon1) or np.isnan(lat1) or np.isnan(lon2) or np.isnan(lat2):
-        return np.nan
-    R = 6362.132
-    lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
-
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
-    a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * \
-        np.cos(lat2) * np.sin(dlon / 2) ** 2
-    c = 2 * np.arctan2(a ** 0.5, (1 - a) ** 0.5)
-    d = R * c * 1000
-
-    return round(d, 1)
-
-
-def convertSecondsToTime(seconds):
-    """
-    Convert total seconds to datetime-stamp
-    :type seconds: int
-    :return: Total time in h:m:s (datetime)
-    """
-    seconds = seconds % (24 * 3600)
-    hour = seconds // 3600
-    seconds %= 3600
-    minutes = seconds // 60
-    seconds %= 60
-    return datetime.time(hour=hour, minute=minutes, second=seconds)
-
-
-def calcTrajectory(vessel, index):
-    """
-    Calculates a projected trajectory of an vessel from an index
-    """
-
-    speed = vessel.speed[index]
-    lonStart, latStart = vessel.stateLonLat[:, index]
-
-    posNow = np.array([vessel.state[0, index], vessel.state[0, index]])
-    posPre = np.array([vessel.state[0, index - 1], vessel.state[0, index - 1]])
-    newestVector = posNow - posPre
-
-    course = np.rad2deg(np.arctan2(newestVector[1], newestVector[0]))
-    if course < 0:
-        course += 360
-
-    length = vessel.n_msgs - index
-
-    time_passed = 0
-
-    trajectoryLonLat = np.empty([2, length])
-
-    for i in range(length):
-        time_passed += 1
-        distance = speed * time_passed * 60  # TODO: 1 minute hardcoded
-
-        trajectoryLonLat[0, i] = lonStart + np.sin(np.deg2rad(course)) * distance * 360 / (
-                6362.132 * 1000 * np.pi * 2 * np.cos(np.deg2rad(latStart)))
-        trajectoryLonLat[1, i] = latStart + np.cos(np.deg2rad(course)) * distance / 111040
-
-    return trajectoryLonLat
-
-
-def calcPredictedCPA(vessel1, vessel2, index):
-    ##################
-    printer_on = False
-    ##################
-
-    vessel1_trajectory = calcTrajectory(vessel1, index)
-    vessel2_trajectory = calcTrajectory(vessel2, index)
-
-    distance = getDisToMeter(vessel1_trajectory[0, 0], vessel1_trajectory[1, 0], vessel2_trajectory[0, 0],
-                             vessel2_trajectory[1, 0])
-    dist = distance
-
-    i = 0
-    s = 0
-    time_at_cpa = 0
-
-    if printer_on:
-        print("Vessel1: ", vessel1.name)
-        print("Vessel2: ", vessel2.name)
-        print("Index:", index)
-
-    while i < vessel1.n_msgs - index - 1:
-        i += 1
-        s += 1
-
-        dist = getDisToMeter(vessel1_trajectory[0, i], vessel1_trajectory[1, i], vessel2_trajectory[0, i],
-                             vessel2_trajectory[1, i])
-
-        if np.isnan(dist):
-            continue
-
-        if dist > distance:
-            break
-
-        if printer_on:
-            print("\t", "*", dist)
-
-        distance = dist
-        time_at_cpa = i + index
-
-    if printer_on:
-        print(distance)
-        import csv
-        with open('sums.csv', 'a', newline='') as csvfile:
-            spamwriter = csv.writer(csvfile, delimiter=' ',
-                                    quotechar='|', quoting=csv.QUOTE_MINIMAL)
-            spamwriter.writerow(str(s))
-
-    return distance, time_at_cpa
+# # Helper metods --------------------------------------------------------------------------------------------------------
+# def rotate(vec, ang):
+#     """
+#     :param vec: 2D vector
+#     :param ang: angle in radians
+#     :return: input vector rotated by the input angle
+#     """
+#     r_mat = np.array([[np.cos(ang), -np.sin(ang)], [np.sin(ang), np.cos(ang)]])
+#     rot_vec = np.dot(r_mat, vec)
+#     return rot_vec
+#
+#
+# def normalize_2pi(angle):
+#     """
+#     :param angle: Angle in radians
+#     :type angle: float
+#     :return: Angle in radians normalized to [0, 2*pi)
+#     """
+#
+#     if np.isnan(angle):
+#         return np.nan
+#     else:
+#         while angle >= 2 * np.pi:
+#             angle -= 2 * np.pi
+#         while angle < 0:
+#             angle += 2 * np.pi
+#         return angle
+#
+#
+# def normalize_pi(angle):
+#     """
+#     :param angle: Angle in radians
+#     :type angle: float
+#     :return: Angle in radians normalized to [-pi, pi)
+#     """
+#
+#     if np.isnan(angle):
+#         return np.nan
+#     else:
+#         while angle >= np.pi:
+#             angle -= 2 * np.pi
+#         while angle < -np.pi:
+#             angle += 2 * np.pi
+#         return angle
+#
+#
+# def normalize_360_deg(angle):
+#     """
+#     :param angle: Angle in degrees
+#     :type angle: float
+#     :return: Angle in degrees normalized to [0, 360)
+#     """
+#
+#     if np.isnan(angle):
+#         return np.nan
+#     else:
+#         while angle >= 360:
+#             angle -= 360
+#         while angle < 0:
+#             angle += 360
+#         return angle
+#
+#
+# def normalize_180_deg(angle):
+#     """
+#     :param angle: Angle in degrees
+#     :type angle: float
+#     :return: Angle in degrees normalized to [-180, 180)
+#     """
+#     if np.isnan(angle):
+#         return np.nan
+#     else:
+#         while angle >= 180:
+#             angle -= 2 * 180
+#         while angle < -180:
+#             angle += 2 * 180
+#         return angle
+#
+#
+# def abs_ang_diff(minuend, subtrahend):
+#     """
+#     Returns the smallest difference between two angles
+#     :param minuend: Angle in [0,2*pi]
+#     :param subtrahend: Angle in [0,2*pi]
+#     :return: Angle in [0,2*pi]
+#     """
+#
+#     if np.isnan(minuend) or np.isnan(subtrahend):
+#         return 2 * np.pi
+#     return np.pi - abs(abs(minuend - subtrahend) - np.pi)
+#
+#
+# def signed_ang_diff(minuend, subtrahend):
+#     """
+#     Returns the signed difference between two angles
+#     :param minuend: Angle in [0,2*pi]
+#     :param subtrahend: Angle in [0,2*pi]
+#     :return: Angle in [-2*pi, 2*pi]
+#     """
+#
+#     diff = minuend - subtrahend
+#     diff = (diff + np.pi) % (2 * np.pi) - np.pi
+#     return diff
+#
+#
+# def format_func(value, tick_number):
+#     # find number of multiples of pi/4
+#     N = int(np.round(4 * value / np.pi))
+#     if N == 0:
+#         return "0"
+#     elif N == 1:
+#         return r"$\pi/4$"
+#     elif N == 2:
+#         return r"$\pi/2$"
+#     elif N == 3:
+#         return r"${0}\pi/4$".format(N)
+#     elif N % 4 > 0:
+#         return r"${0}\pi/4$".format(N)
+#     else:
+#         return r"${0}\pi$".format(N // 4)
+#
+#
+# def getMmsiList(df):
+#     """
+#     Returns a list of all different mmsi contained in DataFrame
+#     :param df: DataFrame containing AIS_data
+#     :type df: pandas DataFrame
+#     :return: List of mmsi [mmsi_1, mmsi_2,..., mmsi_n]
+#     """
+#     temp_list = df.mmsi.unique().tolist()
+#     return temp_list
+#
+#
+# def getListOfMmsiDf(df):
+#     """
+#     Returns a list of DataFrames, where each DataFrame contains AIS_data for a ship
+#     :param df: DataFrame containing AIS_data
+#     :type df: pandas DataFrame
+#     :return: List of mmsi [DF_mmsi_1, DF_mmsi_2,..., DF_mmsi_n]
+#     """
+#     mmsiList = getMmsiList(df)
+#     mmsiDfList = [df[df.mmsi == mmsi].reset_index(drop=True) for mmsi in mmsiList]
+#     return mmsiDfList
+#
+#
+# def knots_to_mps(knots):
+#     """
+#     Transform velocity from knots to m/s
+#     :type knots: float
+#     :return: Velocity given in m/s (float)
+#     """
+#     if np.isnan(knots) or (knots >= 102.3):
+#         return np.nan
+#     mps = knots * 1.852 / 3.6
+#     return mps
+#
+#
+# def knots_to_kmph(knots):
+#     """
+#     Transform velocity from knots to km/h
+#     :type knots: float
+#     :return: Velocity given in km/h (float)
+#     """
+#     if np.isnan(knots) or (knots >= 102.3):
+#         return np.nan
+#     kmph = knots * 1.852
+#     return kmph
+#
+#
+# def getDisToMeter(lon1, lat1, lon2, lat2, **kwarg):
+#     """
+#     Find the distance between two lon/lat - coordinates given in meters
+#     :type lon1, lat1, lon2, lat2: float
+#     :return: Distance given in meters (float)
+#     """
+#     if lon1 == lon2:
+#         d_simple = abs(lat1 - lat2) * 111040
+#         return round(d_simple, 1)
+#
+#     if lat1 == lat2:
+#         d_simple = abs(lon1 - lon2) * 6362.132 * 1000 * np.pi * 2 * np.cos(np.deg2rad(lat1)) / 360
+#         return round(d_simple, 1)
+#
+#     if np.isnan(lon1) or np.isnan(lat1) or np.isnan(lon2) or np.isnan(lat2):
+#         return np.nan
+#     R = 6362.132
+#     lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
+#
+#     dlat = lat2 - lat1
+#     dlon = lon2 - lon1
+#     a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * \
+#         np.cos(lat2) * np.sin(dlon / 2) ** 2
+#     c = 2 * np.arctan2(a ** 0.5, (1 - a) ** 0.5)
+#     d = R * c * 1000
+#
+#     return round(d, 1)
+#
+#
+# def convertSecondsToTime(seconds):
+#     """
+#     Convert total seconds to datetime-stamp
+#     :type seconds: int
+#     :return: Total time in h:m:s (datetime)
+#     """
+#     seconds = seconds % (24 * 3600)
+#     hour = seconds // 3600
+#     seconds %= 3600
+#     minutes = seconds // 60
+#     seconds %= 60
+#     return datetime.time(hour=hour, minute=minutes, second=seconds)
+#
+#
+# def calcTrajectory(vessel, index):
+#     """
+#     Calculates a projected trajectory of an vessel from an index
+#     """
+#
+#     speed = vessel.speed[index]
+#     lonStart, latStart = vessel.stateLonLat[:, index]
+#
+#     posNow = np.array([vessel.state[0, index], vessel.state[0, index]])
+#     posPre = np.array([vessel.state[0, index - 1], vessel.state[0, index - 1]])
+#     newestVector = posNow - posPre
+#
+#     course = np.rad2deg(np.arctan2(newestVector[1], newestVector[0]))
+#     if course < 0:
+#         course += 360
+#
+#     length = vessel.n_msgs - index
+#
+#     time_passed = 0
+#
+#     trajectoryLonLat = np.empty([2, length])
+#
+#     for i in range(length):
+#         time_passed += 1
+#         distance = speed * time_passed * 60  # TODO: 1 minute hardcoded
+#
+#         trajectoryLonLat[0, i] = lonStart + np.sin(np.deg2rad(course)) * distance * 360 / (
+#                 6362.132 * 1000 * np.pi * 2 * np.cos(np.deg2rad(latStart)))
+#         trajectoryLonLat[1, i] = latStart + np.cos(np.deg2rad(course)) * distance / 111040
+#
+#     return trajectoryLonLat
+#
+#
+# def calcPredictedCPA(vessel1, vessel2, index):
+#     ##################
+#     printer_on = False
+#     ##################
+#
+#     vessel1_trajectory = calcTrajectory(vessel1, index)
+#     vessel2_trajectory = calcTrajectory(vessel2, index)
+#
+#     distance = getDisToMeter(vessel1_trajectory[0, 0], vessel1_trajectory[1, 0], vessel2_trajectory[0, 0],
+#                              vessel2_trajectory[1, 0])
+#     dist = distance
+#
+#     i = 0
+#     s = 0
+#     time_at_cpa = 0
+#
+#     if printer_on:
+#         print("Vessel1: ", vessel1.name)
+#         print("Vessel2: ", vessel2.name)
+#         print("Index:", index)
+#
+#     while i < vessel1.n_msgs - index - 1:
+#         i += 1
+#         s += 1
+#
+#         dist = getDisToMeter(vessel1_trajectory[0, i], vessel1_trajectory[1, i], vessel2_trajectory[0, i],
+#                              vessel2_trajectory[1, i])
+#
+#         if np.isnan(dist):
+#             continue
+#
+#         if dist > distance:
+#             break
+#
+#         if printer_on:
+#             print("\t", "*", dist)
+#
+#         distance = dist
+#         time_at_cpa = i + index
+#
+#     if printer_on:
+#         print(distance)
+#         import csv
+#         with open('sums.csv', 'a', newline='') as csvfile:
+#             spamwriter = csv.writer(csvfile, delimiter=' ',
+#                                     quotechar='|', quoting=csv.QUOTE_MINIMAL)
+#             spamwriter.writerow(str(s))
+#
+#     return distance, time_at_cpa
 
 
 class Vessel:

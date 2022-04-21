@@ -53,14 +53,13 @@ def get_case_param_from_file(filename):
             return
 
     ship_path = './' + root.split('/')[1] + '/''full_shipdata.csv'
-    AV = AutoVerification(AIS_path=path.join(root, filename),
+    AV = AutoVerification(ais_path=path.join(root, filename),
                           ship_path=ship_path,
                           r_colregs_2_max=5000,
                           r_colregs_3_max=3000,
                           r_colregs_4_max=400,
                           epsilon_course=10,
                           epsilon_speed=2.5,
-                          delta_chi_apparent=30,
                           alpha_critical_13=45.0,
                           alpha_critical_14=13.0,
                           alpha_critical_15=-10.0,

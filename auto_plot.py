@@ -24,13 +24,11 @@ paths = ['./encs_selected', './encs_north', './encs_south']
 # Combined algorithm
 def get_case_param_from_file(filename, specific_own_name, specific_obst_names, man_idx, q, df_row):
 
-    from os import path
-        
     if not multiple:
         print(filename)
 
     ship_path = './' + root.split('/')[1] + '/full_shipdata.csv'
-    av = AutoVerification(AIS_path=path.join(root, filename),
+    av = AutoVerification(ais_path=os.path.join(root, filename),
                           ship_path=ship_path,
                           r_colregs_2_max=5000,
                           r_colregs_3_max=3000,
