@@ -1,16 +1,15 @@
-""" Will extract parameters from the cases                          """
-""" Can also be used to plot cases/situations                       """
-""" Plotting requires basemap (used with conda and python 3.8.10)   """
-
 from AutoVerification import AutoVerification
-from AutoVerification import abs_ang_diff
 from dataclasses import asdict
 import os
 import time
-import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import multiprocessing as mp
+from itertools import chain
+
+""" Extracts parameters from the cases
+Can also be used to plot cases/situations
+Plotting requires basemap (used with conda and python 3.8.10)   """
 
 multiple = True
 
@@ -34,11 +33,10 @@ paths = ['./encs_selected', './encs_north', './encs_south']
 
 # ---------------------------------------------------------------------------------------------------
 # Combined algorithm
-def getCaseParamFromFile(filename):
+def get_case_param_from_file(filename):
     if not multiple and unique_case != '' and unique_case not in filename:
         return
 
-    import os.path
     from os import path
 
     if not multiple:
@@ -60,22 +58,14 @@ def getCaseParamFromFile(filename):
                           r_colregs_2_max=5000,
                           r_colregs_3_max=3000,
                           r_colregs_4_max=400,
-                          r_pref=1500,  # todo: Find the value used by Woerner
-                          r_min=1000,
-                          r_nm=800,
-                          r_col=200,
                           epsilon_course=10,
                           epsilon_speed=2.5,
                           delta_chi_apparent=30,
-                          delta_speed_apparent=5,
-                          alpha_critical_13=45.0,  # 45,  # absolute value is used
-                          alpha_critical_14=13.0,  # 13.0,  # absolute value is used
-                          alpha_critical_15=-10.0,  # -10.0
-                          alpha_cpa_min_15=-25.0,  # -25
-                          alpha_cpa_max_15=165.0,  # 165
-                          alpha_ahead_lim_13=45.0,  # absolute value is used
-                          phi_OT_min=112.5,  # 112.5,  # equal
-                          phi_OT_max=247.5)  # 247.5,  # equal
+                          alpha_critical_13=45.0,
+                          alpha_critical_14=13.0,
+                          alpha_critical_15=-10.0,
+                          phi_OT_min=112.5,
+                          phi_OT_max=247.5)
 
     AV.find_ranges()  # Find ranges between all ships
 
@@ -171,7 +161,7 @@ def getCaseParamFromFile(filename):
 
 #################################################################################
 print('STARTING')
-from itertools import chain
+
 
 for root, dirs, files in chain.from_iterable(os.walk(path) for path in paths):
     proc = []
@@ -186,9 +176,9 @@ for root, dirs, files in chain.from_iterable(os.walk(path) for path in paths):
     for count, file_name in enumerate(files):
         if file_name.endswith("60-sec.csv"):
             if not multiple:
-                getCaseParamFromFile(file_name)
+                get_case_param_from_file(file_name)
                 continue
-            p = mp.Process(target=getCaseParamFromFile, args=(file_name,))
+            p = mp.Process(target=get_case_param_from_file, args=(file_name,))
             proc.append(p)
             p.start()
 

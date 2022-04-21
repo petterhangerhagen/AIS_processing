@@ -22,7 +22,7 @@ paths = ['./encs_selected', './encs_north', './encs_south']
 
 # ---------------------------------------------------------------------------------------------------
 # Combined algorithm
-def getCaseParamFromFile(filename, specific_own_name, specific_obst_names, traj, q, row):
+def get_case_param_from_file(filename, specific_own_name, specific_obst_names, man_idx, q, df_row):
 
     from os import path
         
@@ -30,61 +30,47 @@ def getCaseParamFromFile(filename, specific_own_name, specific_obst_names, traj,
         print(filename)
 
     ship_path = './' + root.split('/')[1] + '/full_shipdata.csv'
-    AV = AutoVerification(AIS_path=path.join(root, filename),
+    av = AutoVerification(AIS_path=path.join(root, filename),
                           ship_path=ship_path,
                           r_colregs_2_max=5000,
                           r_colregs_3_max=3000,
                           r_colregs_4_max=400,
-                          r_pref=1500,
-                          r_min=1000,
-                          r_nm=800,
-                          r_col=200,
                           epsilon_course=10,
                           epsilon_speed=2.5,
-                          delta_chi_apparent=30,
-                          delta_speed_apparent=5,
                           alpha_critical_13=45.0,
                           alpha_critical_14=13.0,
                           alpha_critical_15=-10.0,
-                          alpha_cpa_min_15=-25.0,
-                          alpha_cpa_max_15=165.0,
-                          alpha_ahead_lim_13=45.0,
                           phi_OT_min=112.5,
                           phi_OT_max=247.5)
 
-    AV.find_ranges()  # Find ranges between all ships
+    av.find_ranges()  # Find ranges between all ships
 
-    for vessel in AV.vessels:
-        AV.find_maneuver_detect_index(vessel)  # Find maneuvers made by ownship
+    for vessel in av.vessels:
+        av.find_maneuver_detect_index(vessel)  # Find maneuvers made by ownship
 
-        for obst in AV.vessels:
+        for obst in av.vessels:
             if vessel.id == obst.id:
                 continue
             sits = []
             sit_happened = False
-            for k in range(AV.n_msgs):
-                if AV.entry_criteria(vessel, obst, k) != AV.NAR:  # Find applicable COLREG rules between all ships
+            for k in range(av.n_msgs):
+                if av.entry_criteria(vessel, obst, k) != av.NAR:  # Find applicable COLREG rules between all ships
                     sit_happened = True
                 if k == 0:
                     continue
-                if AV.situation_matrix[vessel.id, obst.id, k] != AV.situation_matrix[vessel.id, obst.id, k-1]:
+                if av.situation_matrix[vessel.id, obst.id, k] != av.situation_matrix[vessel.id, obst.id, k-1]:
                     sits.append(k)
             if sit_happened:
-                AV.filterOutNonCompleteSituations(vessel, obst)
+                av.filterOutNonCompleteSituations(vessel, obst)
 
-    start = ' - '
-    end = '-60-sec'
-    code = filename[filename.find(start)+len(start):filename.rfind(end)]
-    code = code[-5:]
-
-    for vessel in AV.vessels:
+    for vessel in av.vessels:
         if vessel.travel_dist < 500:
             continue
         plot = False
-        for obst in AV.vessels:
-            if vessel.id != obst.id and not all(x == 0 for x in AV.situation_matrix[vessel.id, obst.id, :]):
-                arr = AV.situation_matrix[vessel.id, obst.id, :]
-                arr[0] = AV.NAR
+        for obst in av.vessels:
+            if vessel.id != obst.id and not all(x == 0 for x in av.situation_matrix[vessel.id, obst.id, :]):
+                arr = av.situation_matrix[vessel.id, obst.id, :]
+                arr[0] = av.NAR
                 indices = np.where(np.logical_and(arr[:-1] != arr[1:], np.logical_or(arr[:-1] == 0, arr[1:] == 0)))[0]
                 if len(indices) > 0:
                     plot = True
@@ -93,11 +79,10 @@ def getCaseParamFromFile(filename, specific_own_name, specific_obst_names, traj,
             if specific_own_name != '' and specific_own_name not in vessel.name:
                 continue
 
-            AV.OWN_SHIP = vessel.id
+            av.OWN_SHIP = vessel.id
             try:
-                q.put((
-                      AV.plot_trajectories2(show_trajectory_at=traj, specific_obst_names=specific_obst_names, save=True,
-                                            save_folder=save_folder), row))
+                q.put((av.plot_trajectories2(show_trajectory_at=man_idx, specific_obst_names=specific_obst_names,
+                                             save=True, save_folder=save_folder), df_row))
             except Exception as ex:
                 print(ex)
 
@@ -105,15 +90,13 @@ def getCaseParamFromFile(filename, specific_own_name, specific_obst_names, traj,
 #################################################################################
 if __name__ == '__main__':
 
-    def saveAndWriteToCSV(name, df, row):
+    def save2dataframe(name, df, df_row):
         if 'img_name' not in df:
             df['img_name'] = ""
-
-        df['img_name'][row] = name
-        
+        df['img_name'][df_row] = name
         return df
     
-    def writeToCSV(df):
+    def write2csv(df):
         df.to_csv(csv_file_name.replace(".csv", "_img.csv"), sep=';')
         return
 
@@ -150,7 +133,7 @@ if __name__ == '__main__':
                 for i in range(len(df_read_c)):
                     own_name = df_read_c.own_name.tolist()[i]
                     obst_name = [df_read_c.obst_name.tolist()[i]]
-                    traj = df_read_c.maneuver_index_own.tolist()[i]
+                    maneuver_idx = df_read_c.maneuver_index_own.tolist()[i]
                     row = df_read_c.index.tolist()[i]
 
                     if 'img_name' in df_read: 
@@ -160,16 +143,17 @@ if __name__ == '__main__':
                                 continue
 
                     if not multiple:
-                        getCaseParamFromFile(file_name, own_name, obst_name, traj, queue, row)
+                        get_case_param_from_file(file_name, own_name, obst_name, maneuver_idx, queue, row)
                         while not queue.empty():
                             img_name, row = queue.get()
-                            df_read = saveAndWriteToCSV(img_name, df_read, row)
+                            df_read = save2dataframe(img_name, df_read, row)
 
-                            writeToCSV(df_read)
+                            write2csv(df_read)
 
                         continue
 
-                    p = mp.Process(target=getCaseParamFromFile, args=(file_name, own_name, obst_name, traj, queue, row,))
+                    p = mp.Process(target=get_case_param_from_file,
+                                   args=(file_name, own_name, obst_name, maneuver_idx, queue, row,))
                     proc.append(p)
                     p.start()
 
@@ -188,9 +172,9 @@ if __name__ == '__main__':
 
                                 if not queue.empty():
                                     img_name, row = queue.get()
-                                    df_read = saveAndWriteToCSV(img_name, df_read, row)
+                                    df_read = save2dataframe(img_name, df_read, row)
 
-                                    writeToCSV(df_read)
+                                    write2csv(df_read)
                         time.sleep(0.5)
 
     sys.stdout.flush()
@@ -202,10 +186,10 @@ if __name__ == '__main__':
                 proc.remove(ps)
 
                 if not queue.empty():
-                    df_read = saveAndWriteToCSV(img_name, df_read, row)
-                    writeToCSV(df_read)
+                    df_read = save2dataframe(img_name, df_read, row)
+                    write2csv(df_read)
     while not queue.empty():
-        df_read = saveAndWriteToCSV(img_name, df_read, row)
+        df_read = save2dataframe(img_name, df_read, row)
 
-    writeToCSV(df_read)
+    write2csv(df_read)
 

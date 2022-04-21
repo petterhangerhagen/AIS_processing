@@ -11,7 +11,7 @@ for root, directory, files in os.walk('./para/'):
 
             if i % 100 == 0:
                 print("File: ", i, " / ", len(files))
-
+            # TODO: Check filter conditionals
             try:
                 df = pd.read_csv('para/' + filename, sep=';', dtype={
                                 'n_ships': int,
