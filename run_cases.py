@@ -144,8 +144,8 @@ def get_case_param_from_file(filename):
                                 traj = param_dict['maneuver_index_own']
                             else:
                                 traj = TRAJ
-                            AV.plot_trajectories2(show_trajectory_at=traj,
-                                                  specific_obst_names=specific_obst_names)
+                            AV.plot_trajectories(show_trajectory_at=traj,
+                                                 specific_obst_names=specific_obst_names)
 
     if plot_case:
         AV.plot_case()
