@@ -34,6 +34,7 @@ for root, directory, files in os.walk('./para/'):
                                 'multi_man_own': bool,
                                 'maneuver_made_own': bool,
                                 'maneuver_index_own': int,
+                                'maneuver_stop_idx_own': int,
                                 'r_maneuver_own': float,
                                 'pre_man_dist_own': float,
                                 'post_man_dist_own': float,
@@ -42,6 +43,7 @@ for root, directory, files in os.walk('./para/'):
                                 'multi_man_obst': bool,
                                 'maneuver_made_obst': bool,
                                 'maneuver_index_obst': int,
+                                'maneuver_stop_idx_obst': int,
                                 'r_maneuver_obst': float,
                                 'pre_man_dist_obst': float,
                                 'post_man_dist_obst': float,
@@ -57,6 +59,7 @@ for root, directory, files in os.walk('./para/'):
                                 'COLREG': float,
                                 'single_COLREG_type': bool,
                                 'time': str,
+                                'cpa_idx': int,
                                 'start_idx': int,
                                 'stop_idx': int
                                 }, parse_dates=['date_cpa'], infer_datetime_format=True)

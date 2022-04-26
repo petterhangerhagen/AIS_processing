@@ -9,8 +9,8 @@ from AV_class_functions.helper_methods import *
 from matplotlib import cm
 from dataclasses import dataclass
 
-
 warnings.filterwarnings("ignore")
+
 
 class AutoVerification:
     # "Constants"
@@ -723,7 +723,7 @@ class AutoVerification:
                     print("COLREGS start: ", start_idx, " stop: ", stop_idx)
 
                 man_inside = ((start_idx < vessel.maneuver_start_stop[:, 0]) & (
-                            stop_idx > vessel.maneuver_start_stop[:, 0])) if len(
+                        stop_idx > vessel.maneuver_start_stop[:, 0])) if len(
                     vessel.maneuver_detect_idx) > 0 else np.array([], dtype=bool)
                 man_inside = np.array(man_inside)
 
@@ -737,6 +737,7 @@ class AutoVerification:
                 i = 0
                 man_number = 0
                 maneuver_idx = None
+                maneuver_stop_idx = None
 
                 pre_man_dist = None
                 post_man_dist = None
@@ -791,6 +792,7 @@ class AutoVerification:
                     for inside in man_inside:
                         if inside:
                             maneuver_idx = vessel.maneuver_start_stop[i][0]
+                            maneuver_stop_idx = vessel.maneuver_start_stop[i][1]
                             man_number = i
                             pre_man_dist, pre_man_t_cpa = calcPredictedCPA(vessel, obst,
                                                                            vessel.maneuver_start_stop[i][0])
@@ -806,11 +808,11 @@ class AutoVerification:
                 else:
                     maneuver_flag = False
 
-                return maneuver_flag, man_number, maneuver_idx, multi_man, pre_man_dist, pre_man_t_cpa, post_man_dist, post_man_t_cpa
+                return maneuver_flag, man_number, maneuver_idx, maneuver_stop_idx, multi_man, pre_man_dist, pre_man_t_cpa, post_man_dist, post_man_t_cpa
 
-        maneuver_made_own, man_number_own, maneuver_idx_own, multi_man_own, pre_man_dist_own, pre_man_t_cpa_own, post_man_dist_own, post_man_t_cpa_own = getVesselParams(
+        maneuver_made_own, man_number_own, maneuver_idx_own, maneuver_stop_idx_own, multi_man_own, pre_man_dist_own, pre_man_t_cpa_own, post_man_dist_own, post_man_t_cpa_own = getVesselParams(
             own_vessel, obst_vessel)
-        maneuver_made_obst, man_number_obst, maneuver_idx_obst, multi_man_obst, pre_man_dist_obst, pre_man_t_cpa_obst, post_man_dist_obst, post_man_t_cpa_obst = getVesselParams(
+        maneuver_made_obst, man_number_obst, maneuver_idx_obst, maneuver_stop_idx_obst, multi_man_obst, pre_man_dist_obst, pre_man_t_cpa_obst, post_man_dist_obst, post_man_t_cpa_obst = getVesselParams(
             obst_vessel, own_vessel)
 
         if maneuver_idx_own is None and maneuver_made_own:
@@ -824,6 +826,7 @@ class AutoVerification:
             maneuver_made_own,
             man_number_own,
             maneuver_idx_own,
+            maneuver_stop_idx_own,
             multi_man_own,
             pre_man_dist_own,
             pre_man_t_cpa_own,
@@ -832,6 +835,7 @@ class AutoVerification:
             maneuver_made_obst,
             man_number_obst,
             maneuver_idx_obst,
+            maneuver_stop_idx_obst,
             multi_man_obst,
             pre_man_dist_obst,
             pre_man_t_cpa_obst,
@@ -841,9 +845,10 @@ class AutoVerification:
         return params
 
     def getParameters(self, vessel, obst, start_idx, stop_idx, maneuver_made_own, man_number_own, maneuver_idx_own,
-                      multi_man_own, pre_man_dist_own, pre_man_t_cpa_own, post_man_dist_own, post_man_t_cpa_own,
-                      maneuver_made_obst, man_number_obst, maneuver_idx_obst, multi_man_obst, pre_man_dist_obst,
-                      pre_man_t_cpa_obst, post_man_dist_obst, post_man_t_cpa_obst):
+                      maneuver_stop_idx_own, multi_man_own, pre_man_dist_own, pre_man_t_cpa_own, post_man_dist_own,
+                      post_man_t_cpa_own, maneuver_made_obst, man_number_obst, maneuver_idx_obst,
+                      maneuver_stop_idx_obst, multi_man_obst, pre_man_dist_obst, pre_man_t_cpa_obst, post_man_dist_obst,
+                      post_man_t_cpa_obst):
         """
         Takes the timespan of a COLREG situation and returns ownship info, obstacle info, and parameters for
         any maneuvers made by ownship. Output is returned as a Parameters-object.
@@ -861,6 +866,7 @@ class AutoVerification:
             r_maneuver_own = self.ranges[vessel.id, obst.id, maneuver_idx_own]
         else:
             maneuver_idx_own = (stop_idx - start_idx) // 2 + start_idx
+            maneuver_stop_idx_own = maneuver_idx_own
             idx = maneuver_idx_own
             delta_course_own = 0
             delta_speed_own = 0
@@ -888,6 +894,7 @@ class AutoVerification:
 
         time = convertSecondsToTime(int((stop_idx - start_idx) * (vessel.dT * 10 ** 9)))
         date_cpa = vessel.stateDateTime[self.cpa_idx[vessel.id, obst.id]]
+        cpa_idx = self.cpa_idx[vessel.id, obst.id]
 
         # OBST param
         if maneuver_made_obst:
@@ -897,60 +904,64 @@ class AutoVerification:
             r_maneuver_obst = self.ranges[obst.id, vessel.id, maneuver_idx_obst]
         else:
             maneuver_idx_obst = (stop_idx - start_idx) // 2 + start_idx
+            maneuver_stop_idx_obst = maneuver_idx_obst
             idx = maneuver_idx_obst
             delta_course_obst = 0
             delta_speed_obst = 0
             r_maneuver_obst = self.ranges[vessel.id, obst.id, idx]
 
-        params = Parameters(len(self.vessels), \
-                            vessel.mmsi, \
-                            obst.mmsi, \
-                            vessel.name, \
-                            obst.name, \
-                            vessel.callsign, \
-                            obst.callsign, \
-                            vessel.length, \
-                            obst.length, \
-                            vessel.width, \
-                            obst.width, \
-                            vessel.type, \
-                            obst.type, \
-                            vessel.nav_status[start_idx:stop_idx + 1].mean(), \
-                            obst.nav_status[start_idx:stop_idx + 1].mean(), \
-                            own_speed, \
-                            obst_speed, \
-                            multi_man_own, \
-                            maneuver_made_own, \
-                            maneuver_idx_own, \
-                            r_maneuver_own, \
-                            pre_man_dist_own, \
-                            pre_man_t_cpa_own, \
-                            post_man_dist_own, \
-                            post_man_t_cpa_own, \
-                            delta_speed_own, \
-                            delta_course_own, \
-                            multi_man_own, \
-                            maneuver_made_obst, \
-                            maneuver_idx_obst, \
-                            r_maneuver_obst, \
-                            pre_man_dist_obst, \
-                            pre_man_t_cpa_obst, \
-                            post_man_dist_obst, \
-                            post_man_t_cpa_obst, \
-                            delta_speed_obst, \
-                            delta_course_obst, \
-                            alpha_start, \
-                            beta_start, \
-                            r_cpa, \
-                            alpha_cpa, \
-                            beta_cpa, \
-                            lon_maneuver, \
-                            lat_maneuver, \
-                            colreg_type, \
-                            single_colreg_type, \
-                            time, \
-                            date_cpa, \
-                            start_idx, \
+        params = Parameters(len(self.vessels),
+                            vessel.mmsi,
+                            obst.mmsi,
+                            vessel.name,
+                            obst.name,
+                            vessel.callsign,
+                            obst.callsign,
+                            vessel.length,
+                            obst.length,
+                            vessel.width,
+                            obst.width,
+                            vessel.type,
+                            obst.type,
+                            vessel.nav_status[start_idx:stop_idx + 1].mean(),
+                            obst.nav_status[start_idx:stop_idx + 1].mean(),
+                            own_speed,
+                            obst_speed,
+                            multi_man_own,
+                            maneuver_made_own,
+                            maneuver_idx_own,
+                            maneuver_stop_idx_own,
+                            r_maneuver_own,
+                            pre_man_dist_own,
+                            pre_man_t_cpa_own,
+                            post_man_dist_own,
+                            post_man_t_cpa_own,
+                            delta_speed_own,
+                            delta_course_own,
+                            multi_man_own,
+                            maneuver_made_obst,
+                            maneuver_idx_obst,
+                            maneuver_stop_idx_obst,
+                            r_maneuver_obst,
+                            pre_man_dist_obst,
+                            pre_man_t_cpa_obst,
+                            post_man_dist_obst,
+                            post_man_t_cpa_obst,
+                            delta_speed_obst,
+                            delta_course_obst,
+                            alpha_start,
+                            beta_start,
+                            r_cpa,
+                            alpha_cpa,
+                            beta_cpa,
+                            lon_maneuver,
+                            lat_maneuver,
+                            colreg_type,
+                            single_colreg_type,
+                            time,
+                            date_cpa,
+                            cpa_idx,
+                            start_idx,
                             stop_idx)
         return params
 
@@ -1160,7 +1171,6 @@ class AutoVerification:
             y_max_temp = max(vessel.stateLonLat[1])
             y_min = min(y_min, y_min_temp)
             y_max = max(y_max, y_max_temp)
-
 
         margin = 0.05
 
@@ -1402,6 +1412,7 @@ class Parameters:
     multi_man_own: bool
     maneuver_made_own: bool
     maneuver_index_own: int
+    maneuver_stop_idx_own: int
     r_maneuver_own: float
     pre_man_dist_own: float
     pre_man_t_cpa_own: int
@@ -1412,6 +1423,7 @@ class Parameters:
     multi_man_obst: bool
     maneuver_made_obst: bool
     maneuver_index_obst: int
+    maneuver_stop_idx_obst: int
     r_maneuver_obst: float
     pre_man_dist_obst: float
     pre_man_t_cpa_obst: int
@@ -1430,5 +1442,6 @@ class Parameters:
     single_COLREG_type: bool
     time: datetime.time
     date_cpa: datetime
+    cpa_idx: int
     start_idx: int
     stop_idx: int
