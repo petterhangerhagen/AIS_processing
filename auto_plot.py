@@ -8,6 +8,7 @@ from matplotlib import pyplot as plt
 from mpl_toolkits.basemap import Basemap
 from datetime import datetime, date, time
 from AV_class_functions.helper_methods import knots_to_mps
+from matplotlib.legend_handler import HandlerLine2D, HandlerTuple
 
 """ Runs AutoVerify on every case in folders of 'paths'    
 All outputs will be saved in /para/ folder                  
@@ -104,8 +105,6 @@ def plot_situation(para_df, os_df, tg_df):
     :param para_df: Dataframe containing parameters extracted from the situation
     :param os_df: Dataframe containing AIS data from vessel considered the ownship
     :param tg_df: Dataframe containing AIS data from vessel considered the obstacle"""
-    # TODO: Plot cpa when the index has been added to the parameter file
-    # TODO: Plot trajectory prediction at maneuver stop
 
     x_min = 9.0 * 10 ** 9
     x_max = -9.0 * 10 ** 9
@@ -122,9 +121,14 @@ def plot_situation(para_df, os_df, tg_df):
     margin = 0.02
     lon_bounds = [x_min - margin, x_max + margin]
     lat_bounds = [y_min - margin, y_max + margin]
+    # TODO: get man_stop and cpa index from file when files are updated
     maneuver_start = int(para_df['maneuver_index_own'].values[0])
+    # maneuver_stop = int(para_df['maneuver_stop_index_own'].values[0])
+    maneuver_stop = 0
     sit_start = para_df['start_idx'].values[0]
     sit_stop = para_df['stop_idx'].values[0]
+    # cpa_idx = para_df['cpa_idx'].values[0]
+    cpa_idx = 0
 
     fig, ax = plt.subplots()
     # Prepare mapping
@@ -134,31 +138,27 @@ def plot_situation(para_df, os_df, tg_df):
                       llcrnrlon=lon_bounds[0], urcrnrlon=lon_bounds[1], resolution='h', ax=ax)
     mapping.drawcoastlines(linewidth=0.25)
     mapping.fillcontinents(color='coral', lake_color='aqua')
+
     # Map trajectories to chosen projection
     os_x, os_y = mapping(os_df['lon'].values, os_df['lat'].values)
     tg_x, tg_y = mapping(tg_df['lon'].values, tg_df['lat'].values)
 
-    # Plot trajectories
-    mapping.plot(os_x, os_y, color='b', label='ownship')
-    mapping.plot(tg_x, tg_y, color='r', label='obstacle')
-
-    # Mark significant indices
-    mapping.scatter(os_x[0], os_y[0], color='b', marker='x', label='start')
-    mapping.scatter(tg_x[0], tg_y[0], color='r', marker='x')
-
-    mapping.scatter(os_x[sit_start], os_y[sit_start], color='g', marker='d')
-    mapping.scatter(tg_x[sit_start], tg_y[sit_start], color='g', marker='d')
-    ax.annotate('COLREG\nstart', (os_x[sit_start], os_y[sit_start]), xytext=(os_x[sit_start] + 5, os_y[sit_start] + 5))
-    mapping.scatter(os_x[sit_stop], os_y[sit_stop], color='y', marker='d')
-    mapping.scatter(tg_x[sit_stop], tg_y[sit_stop], color='y', marker='d')
-    ax.annotate('COLREG\nstop', (os_x[sit_stop], os_y[sit_stop]), xytext=(os_x[sit_stop] + 5, os_y[sit_stop] + 5))
+    # Plot trajectories and situation
+    sit_len = sit_stop - sit_start
+    os_ln, = mapping.plot(os_x[:sit_start + 1], os_y[:sit_start + 1], c='b', ls='--')
+    tg_ln, = mapping.plot(tg_x[:sit_start + 1], tg_y[:sit_start + 1], c='r', ls='--')
+    sit_ln, = mapping.plot(os_x[sit_start:sit_stop + 1], os_y[sit_start:sit_stop + 1],
+                           marker='1', markevery=sit_len, c='b')
+    mapping.plot(tg_x[sit_start:sit_stop + 1], tg_y[sit_start:sit_stop + 1], marker='1', markevery=sit_len, c='r')
+    mapping.plot(os_x[sit_stop:], os_y[sit_stop:], c='b', ls='--')
+    mapping.plot(tg_x[sit_stop:], tg_y[sit_stop:], c='r', ls='--')
 
     if para_df['maneuver_made_own'].values[0]:
         # Plot predicted trajectory at index before maneuver
         if isinstance(param_df['time'].values[0], str):
             time_delta = datetime.strptime(param_df['time'].values[0], "%H:%M:%S") - datetime(1900, 1, 1)
         else:  # Assuming datetime.time
-            time_delta = datetime.combine(date.min, param_df['time'].values[0]) - datetime.min  # if 'time' formatted as
+            time_delta = datetime.combine(date.min, param_df['time'].values[0]) - datetime.min
         dt = time_delta.total_seconds() / (param_df['stop_idx'].values[0] - param_df['start_idx'].values[0])
         n_msgs = len(os_x)
         speed = knots_to_mps(os_df['sog'].values[maneuver_start - 1])
@@ -166,13 +166,32 @@ def plot_situation(para_df, os_df, tg_df):
         pred_traj = predict_trajectory(os_df['lon'].values, os_df['lat'].values, maneuver_start - 1,
                                        n_msgs, dt, speed, course)
         pred_x, pred_y = mapping(pred_traj[0, :], pred_traj[1, :])
-        mapping.plot(pred_x, pred_y, color='k', linestyle=':', label='prediction')
+        pred_ln, = mapping.plot(pred_x, pred_y, color='k', linestyle=':')
 
-        mapping.scatter(os_x[maneuver_start], os_y[maneuver_start], color='b', marker='o', label='maneuver')
+        man_start_mrk = mapping.scatter(os_x[maneuver_start], os_y[maneuver_start], c='seagreen', marker='o', s=80)
+        man_stop_mrk = mapping.scatter(os_x[maneuver_stop], os_y[maneuver_stop], c='darkorange', marker='o', s=80)
         title_string = ''
     else:
         title_string = '\n no evasive maneuver'
-    ax.legend()
+
+    # Mark significant indices
+    os_start_mrk = mapping.scatter(os_x[0], os_y[0], c='b', marker='X', s=60)
+    tg_start_mrk = mapping.scatter(tg_x[0], tg_y[0], c='r', marker='X', s=60)
+    os_cpa_mrk = mapping.scatter(os_x[cpa_idx], os_y[cpa_idx], c='b', marker='x', s=100)
+    tg_cpa_mrk = mapping.scatter(tg_x[cpa_idx], tg_y[cpa_idx], c='r', marker='x', s=100)
+
+    if param_df['maneuver_made_own'].values[0]:
+        handles = [os_ln, tg_ln, sit_ln, (os_start_mrk, tg_start_mrk), (man_start_mrk, man_stop_mrk),
+                   (os_cpa_mrk, tg_cpa_mrk), pred_ln]
+        labels = ['ownship', 'obstacle', 'situation', 'start points', 'maneuver start/stop', 'cpa', 'pre manuver pred']
+    else:
+        handles = [os_ln, tg_ln, sit_ln, (os_start_mrk, tg_start_mrk), (os_cpa_mrk, tg_cpa_mrk)]
+        labels = ['ownship', 'obstacle', 'situation', 'start points', 'cpa']
+
+    handler_map = {sit_ln: HandlerLine2D(numpoints=2), tuple: HandlerTuple(ndivide=None)}
+
+    ax.legend(handles, labels, scatterpoints=1, handler_map=handler_map)
+
     title_string = str(para_df['own_name'].values[0]) + ' - ' + str(para_df['obst_name'].values[0]) + title_string
     ax.set_title(title_string)
 
