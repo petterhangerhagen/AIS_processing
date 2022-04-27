@@ -123,11 +123,11 @@ def plot_situation(para_df, os_df, tg_df):
     lat_bounds = [y_min - margin, y_max + margin]
     # TODO: get man_stop and cpa index from file when files are updated
     maneuver_start = int(para_df['maneuver_index_own'].values[0])
-    # maneuver_stop = int(para_df['maneuver_stop_index_own'].values[0])
+    maneuver_stop = int(para_df['maneuver_stop_idx_own'].values[0])
     maneuver_stop = 0
     sit_start = para_df['start_idx'].values[0]
     sit_stop = para_df['stop_idx'].values[0]
-    # cpa_idx = para_df['cpa_idx'].values[0]
+    cpa_idx = para_df['cpa_idx'].values[0]
     cpa_idx = 0
 
     fig, ax = plt.subplots()
