@@ -564,6 +564,7 @@ class AutoVerification:
         that the time between sample i and i + step_length is one second.
         """
         # TODO: Set limits as class parameters instead of hardcoded values.
+        # TODO: Split maneuver if course change changes direction.
         if vessel.maneuvers_searched:
             return
 
@@ -586,19 +587,21 @@ class AutoVerification:
                 if np.sign(vessel.maneuver_der[0, i]) != np.sign(vessel.maneuver_der[0, i - 1]) \
                         or np.sign(vessel.maneuver_der[2, i]) != np.sign(vessel.maneuver_der[2, i - 1]):
                     cont_man = False
+
             if np.abs(vessel.maneuver_der[0, i]) < 0.01:
                 continue
 
             if np.abs(vessel.maneuver_der[1, i]) > 0.01 and np.sign(vessel.maneuver_der[1, i]) == np.sign(
                     vessel.maneuver_der[1, i - 1]):
-                continue
-                # TODO: Figure out what to do with this unreachable statement.
                 second_der_zeroes = np.concatenate([second_der_zeroes, [i]])
+                continue
 
             if np.abs(vessel.maneuver_der[2, i]) < 0.005:
                 continue
+
             if np.sign(vessel.maneuver_der[0, i]) == np.sign(vessel.maneuver_der[2, i]):
                 continue
+
             if not cont_man:
                 cont_man = True
                 i_maneuver_detect = np.concatenate([i_maneuver_detect, [i]])
