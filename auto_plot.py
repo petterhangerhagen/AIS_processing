@@ -1,3 +1,5 @@
+from pytest import param
+from sqlalchemy import case
 from AutoVerification import AutoVerification
 import os
 import time
@@ -16,13 +18,14 @@ Use read.py to merge all csv files in /para/ to one file
 Requirements:                                                
 -Basemap (used in conjunction with conda and python 3.8.10) """
 
-csv_file_name = 'rstudio.csv'
+csv_file_name = './testing/Params - 01-02-2019, 12-28-11 - 6MC0Q.csv'
 save_folder = 'img'
 
-multiple = True
+multiple = False
 cpu_usage = 80
 
-paths = ['./encs_selected', './encs_north', './encs_south']
+#paths = ['./encs_selected', './encs_north', './encs_south']s
+paths = ['./encs_west_selected']
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -121,14 +124,12 @@ def plot_situation(para_df, os_df, tg_df):
     margin = 0.02
     lon_bounds = [x_min - margin, x_max + margin]
     lat_bounds = [y_min - margin, y_max + margin]
-    # TODO: get man_stop and cpa index from file when files are updated
-    maneuver_start = int(para_df['maneuver_index_own'].values[0])
-    maneuver_stop = int(para_df['maneuver_stop_idx_own'].values[0])
-    maneuver_stop = 0
-    sit_start = para_df['start_idx'].values[0]
-    sit_stop = para_df['stop_idx'].values[0]
-    cpa_idx = para_df['cpa_idx'].values[0]
-    cpa_idx = 0
+
+    maneuver_start = int(para_df['maneuver_index_own'])
+    maneuver_stop = int(para_df['maneuver_stop_idx_own'])
+    sit_start = para_df['start_idx']
+    sit_stop = para_df['stop_idx']
+    cpa_idx = para_df['cpa_idx']
 
     fig, ax = plt.subplots()
     # Prepare mapping
@@ -153,13 +154,14 @@ def plot_situation(para_df, os_df, tg_df):
     mapping.plot(os_x[sit_stop:], os_y[sit_stop:], c='b', ls='--')
     mapping.plot(tg_x[sit_stop:], tg_y[sit_stop:], c='r', ls='--')
 
-    if para_df['maneuver_made_own'].values[0]:
+    if para_df['maneuver_made_own']:
         # Plot predicted trajectory at index before maneuver
-        if isinstance(param_df['time'].values[0], str):
-            time_delta = datetime.strptime(param_df['time'].values[0], "%H:%M:%S") - datetime(1900, 1, 1)
+        if isinstance(para_df['time'], str): 
+            time_delta = datetime.strptime(para_df['time'], "%H:%M:%S") - datetime(1900, 1, 1) 
         else:  # Assuming datetime.time
-            time_delta = datetime.combine(date.min, param_df['time'].values[0]) - datetime.min
-        dt = time_delta.total_seconds() / (param_df['stop_idx'].values[0] - param_df['start_idx'].values[0])
+            time_delta = datetime.combine(date.min, para_df['time']) - datetime.min
+        dt = time_delta.total_seconds() / (para_df['stop_idx'] - para_df['start_idx'])
+
         n_msgs = len(os_x)
         speed = knots_to_mps(os_df['sog'].values[maneuver_start - 1])
         course = os_df['cog'].values[maneuver_start - 1]
@@ -192,11 +194,17 @@ def plot_situation(para_df, os_df, tg_df):
 
     ax.legend(handles, labels, scatterpoints=1, handler_map=handler_map)
 
-    title_string = str(para_df['own_name'].values[0]) + ' - ' + str(para_df['obst_name'].values[0]) + title_string
+    title_string = str(para_df['own_name']) + ' - ' + str(para_df['obst_name']) + title_string
+
     ax.set_title(title_string)
 
     fig.set_size_inches(10.4, 8.8)
-    plt.show()
+
+    image_name = './' + str(save_folder) + '/' + str(para_df['own_name']) + '-' + str(para_df['obst_name']) + '-' \
+                 + str(para_df['case']) + '.png'
+    plt.savefig(image_name)
+    
+    return image_name
 
 
 def predict_trajectory(lon, lat, index, n_msgs, dt, speed, course):
@@ -269,23 +277,14 @@ if __name__ == '__main__':
         for count, file_name in enumerate(files):
             if file_name.endswith("60-sec.csv"):
 
-                # filename_code = file_name.replace("-60-sec.csv", "")[-5:]  # filename must be ais data
                 start = ' - '
                 end = '-60-sec'
                 filename_code = file_name[file_name.find(start) + len(start):file_name.rfind(end)][-5:]
                 param_df = df_read[df_read['case'] == filename_code]  # Parameter data
 
-                # # If it doesn't work to use the case_path variable, try this:
-                # for ais_root, ais_directory, ais_files in os.walk(root):
-                #     for ais_file in ais_files:
-                #         if ais_file.endswith(".csv") and (filename_code + '-60-sec' in ais_file):
-                #             case_path = os.path.join(ais_root, ais_file)
-                #             break
                 case_path = os.path.join(root, file_name)
                 ais_df = pd.read_csv(case_path, sep=';')  # AIS data
 
-                # TODO: Write plotting functions to repplace get_case_param_from_file and av.plot_trajectories to avoid
-                #  creation of Autoverification instance
                 if len(param_df) != 0:
                     if not multiple:
                         print(param_df)
@@ -293,14 +292,14 @@ if __name__ == '__main__':
                     continue
 
                 for i in range(len(param_df)):
-                    own_name = param_df.own_name.tolist()[i]
-                    obst_name = [param_df.obst_name.tolist()[i]]
+                    own_mmsi = param_df.own_mmsi.tolist()[i]             
+                    obst_mmsi = param_df.obst_mmsi.tolist()[i]      
                     maneuver_idx = param_df.maneuver_index_own.tolist()[i]
                     row = param_df.index.tolist()[i]
 
-                    ownship_df = ais_df.loc[ais_df['own_name'] == own_name]
-                    obst_df = ais_df.loc[ais_df['obst_name'] == obst_name]
-                    sit_df = param_df[row]
+                    ownship_df = ais_df.loc[ais_df['mmsi'] == own_mmsi] 
+                    obst_df = ais_df.loc[ais_df['mmsi'] == obst_mmsi]   
+                    sit_df = param_df.iloc[row] 
 
                     if 'img_name' in df_read:
                         val = df_read.at[row, 'img_name']
