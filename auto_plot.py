@@ -1,3 +1,5 @@
+from pytest import param
+from sqlalchemy import case
 from AutoVerification import AutoVerification
 import os
 import time
@@ -15,13 +17,14 @@ Use read.py to merge all csv files in /para/ to one file
 Requirements:                                                
 -Basemap (used in conjunction with conda and python 3.8.10) """
 
-csv_file_name = 'rstudio.csv'
+csv_file_name = './testing/Params - 01-02-2019, 12-28-11 - 6MC0Q.csv'
 save_folder = 'img'
 
-multiple = True
+multiple = False
 cpu_usage = 80
 
-paths = ['./encs_selected', './encs_north', './encs_south']
+#paths = ['./encs_selected', './encs_north', './encs_south']s
+paths = ['./encs_west_selected']
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -122,9 +125,10 @@ def plot_situation(para_df, os_df, tg_df):
     margin = 0.02
     lon_bounds = [x_min - margin, x_max + margin]
     lat_bounds = [y_min - margin, y_max + margin]
-    maneuver_start = int(para_df['maneuver_index_own'].values[0])
-    sit_start = para_df['start_idx'].values[0]
-    sit_stop = para_df['stop_idx'].values[0]
+    maneuver_start = int(para_df['maneuver_index_own']) 
+    sit_start = para_df['start_idx'] 
+    sit_stop = para_df['stop_idx'] 
+    
 
     fig, ax = plt.subplots()
     # Prepare mapping
@@ -153,13 +157,15 @@ def plot_situation(para_df, os_df, tg_df):
     mapping.scatter(tg_x[sit_stop], tg_y[sit_stop], color='y', marker='d')
     ax.annotate('COLREG\nstop', (os_x[sit_stop], os_y[sit_stop]), xytext=(os_x[sit_stop] + 5, os_y[sit_stop] + 5))
 
-    if para_df['maneuver_made_own'].values[0]:
+    
+    if para_df['maneuver_made_own']: 
+
         # Plot predicted trajectory at index before maneuver
-        if isinstance(param_df['time'].values[0], str):
-            time_delta = datetime.strptime(param_df['time'].values[0], "%H:%M:%S") - datetime(1900, 1, 1)
+        if isinstance(para_df['time'], str): 
+            time_delta = datetime.strptime(para_df['time'], "%H:%M:%S") - datetime(1900, 1, 1) 
         else:  # Assuming datetime.time
-            time_delta = datetime.combine(date.min, param_df['time'].values[0]) - datetime.min  # if 'time' formatted as
-        dt = time_delta.total_seconds() / (param_df['stop_idx'].values[0] - param_df['start_idx'].values[0])
+            time_delta = datetime.combine(date.min, para_df['time']) - datetime.min  # if 'time' formatted as 
+        dt = time_delta.total_seconds() / (para_df['stop_idx'] - para_df['start_idx'])
         n_msgs = len(os_x)
         speed = knots_to_mps(os_df['sog'].values[maneuver_start - 1])
         course = os_df['cog'].values[maneuver_start - 1]
@@ -173,11 +179,17 @@ def plot_situation(para_df, os_df, tg_df):
     else:
         title_string = '\n no evasive maneuver'
     ax.legend()
-    title_string = str(para_df['own_name'].values[0]) + ' - ' + str(para_df['obst_name'].values[0]) + title_string
+    title_string = str(para_df['own_name']) + ' - ' + str(para_df['obst_name']) + title_string 
     ax.set_title(title_string)
 
     fig.set_size_inches(10.4, 8.8)
-    plt.show()
+
+    img_name = './' + str(save_folder) + '/' + str(para_df['own_name']) + '-' + str(para_df['obst_name']) + '-' + str(para_df['case']) + '.png'
+    plt.savefig(img_name)
+
+    #plt.show()
+    
+    return img_name
 
 
 def predict_trajectory(lon, lat, index, n_msgs, dt, speed, course):
@@ -274,14 +286,14 @@ if __name__ == '__main__':
                     continue
 
                 for i in range(len(param_df)):
-                    own_name = param_df.own_name.tolist()[i]
-                    obst_name = [param_df.obst_name.tolist()[i]]
+                    own_mmsi = param_df.own_mmsi.tolist()[i]             
+                    obst_mmsi = param_df.obst_mmsi.tolist()[i]      
                     maneuver_idx = param_df.maneuver_index_own.tolist()[i]
                     row = param_df.index.tolist()[i]
 
-                    ownship_df = ais_df.loc[ais_df['own_name'] == own_name]
-                    obst_df = ais_df.loc[ais_df['obst_name'] == obst_name]
-                    sit_df = param_df[row]
+                    ownship_df = ais_df.loc[ais_df['mmsi'] == own_mmsi] 
+                    obst_df = ais_df.loc[ais_df['mmsi'] == obst_mmsi]   
+                    sit_df = param_df.iloc[row] 
 
                     if 'img_name' in df_read:
                         val = df_read.at[row, 'img_name']
