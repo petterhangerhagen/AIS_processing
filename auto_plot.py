@@ -126,7 +126,10 @@ def plot_situation(para_df, os_df, tg_df):
     lat_bounds = [y_min - margin, y_max + margin]
 
     maneuver_start = int(para_df['maneuver_index_own'])
-    maneuver_stop = int(para_df['maneuver_stop_idx_own'])
+    if param_df['maneuver_stop_idx_own'] is None:
+        maneuver_stop = None
+    else:
+        maneuver_stop = int(para_df['maneuver_stop_idx_own'])
     sit_start = para_df['start_idx']
     sit_stop = para_df['stop_idx']
     cpa_idx = para_df['cpa_idx']
@@ -154,6 +157,15 @@ def plot_situation(para_df, os_df, tg_df):
     mapping.plot(os_x[sit_stop:], os_y[sit_stop:], c='b', ls='--')
     mapping.plot(tg_x[sit_stop:], tg_y[sit_stop:], c='r', ls='--')
 
+    # Mark significant indices
+    os_start_mrk = mapping.scatter(os_x[0], os_y[0], c='b', marker='X', s=60)
+    tg_start_mrk = mapping.scatter(tg_x[0], tg_y[0], c='r', marker='X', s=60)
+    os_cpa_mrk = mapping.scatter(os_x[cpa_idx], os_y[cpa_idx], c='b', marker='x', s=100)
+    tg_cpa_mrk = mapping.scatter(tg_x[cpa_idx], tg_y[cpa_idx], c='r', marker='x', s=100)
+
+    handles = [os_ln, tg_ln, sit_ln, (os_start_mrk, tg_start_mrk), (os_cpa_mrk, tg_cpa_mrk)]
+    labels = ['ownship', 'obstacle', 'situation', 'start points', 'cpa']
+
     if para_df['maneuver_made_own']:
         # Plot predicted trajectory at index before maneuver
         if isinstance(para_df['time'], str): 
@@ -171,24 +183,19 @@ def plot_situation(para_df, os_df, tg_df):
         pred_ln, = mapping.plot(pred_x, pred_y, color='k', linestyle=':')
 
         man_start_mrk = mapping.scatter(os_x[maneuver_start], os_y[maneuver_start], c='seagreen', marker='o', s=80)
-        man_stop_mrk = mapping.scatter(os_x[maneuver_stop], os_y[maneuver_stop], c='darkorange', marker='o', s=80)
+        if maneuver_stop is not None:
+            man_stop_mrk = mapping.scatter(os_x[maneuver_stop], os_y[maneuver_stop], c='darkorange', marker='o', s=80)
+            handles.append((man_start_mrk, man_stop_mrk))
+            labels.append('maneuver start/stop')
+        else:
+            handles.append(man_start_mrk)
+            labels.append('maneuver start')
+
+        handles.append(pred_ln)
+        handles.append('pre manuver pred')
         title_string = ''
     else:
         title_string = '\n no evasive maneuver'
-
-    # Mark significant indices
-    os_start_mrk = mapping.scatter(os_x[0], os_y[0], c='b', marker='X', s=60)
-    tg_start_mrk = mapping.scatter(tg_x[0], tg_y[0], c='r', marker='X', s=60)
-    os_cpa_mrk = mapping.scatter(os_x[cpa_idx], os_y[cpa_idx], c='b', marker='x', s=100)
-    tg_cpa_mrk = mapping.scatter(tg_x[cpa_idx], tg_y[cpa_idx], c='r', marker='x', s=100)
-
-    if param_df['maneuver_made_own'].values[0]:
-        handles = [os_ln, tg_ln, sit_ln, (os_start_mrk, tg_start_mrk), (man_start_mrk, man_stop_mrk),
-                   (os_cpa_mrk, tg_cpa_mrk), pred_ln]
-        labels = ['ownship', 'obstacle', 'situation', 'start points', 'maneuver start/stop', 'cpa', 'pre manuver pred']
-    else:
-        handles = [os_ln, tg_ln, sit_ln, (os_start_mrk, tg_start_mrk), (os_cpa_mrk, tg_cpa_mrk)]
-        labels = ['ownship', 'obstacle', 'situation', 'start points', 'cpa']
 
     handler_map = {sit_ln: HandlerLine2D(numpoints=2), tuple: HandlerTuple(ndivide=None)}
 
