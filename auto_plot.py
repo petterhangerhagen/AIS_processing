@@ -239,6 +239,7 @@ if __name__ == '__main__':
                     own_mmsi = param_df.own_mmsi.tolist()[i]             
                     obst_mmsi = param_df.obst_mmsi.tolist()[i]      
                     maneuver_idx = param_df.maneuver_index_own.tolist()[i]
+                    maneuver_made = param_df.maneuver_made_own.tolist()[i]
                     row = param_df.index.tolist()[i]
 
                     ownship_df = ais_df.loc[ais_df['mmsi'] == own_mmsi] 
@@ -250,6 +251,8 @@ if __name__ == '__main__':
                         if isinstance(val, str):
                             if val != '':
                                 continue
+                    elif not maneuver_made:
+                        continue
 
                     if not multiple:
                         # get_case_param_from_file(file_name, own_name, obst_name, maneuver_idx, queue, row)
