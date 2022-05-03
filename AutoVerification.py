@@ -130,6 +130,7 @@ class AutoVerification:
         # New attributes
         self.alpha = np.zeros([self.n_vessels, self.n_vessels, self.n_msgs])
         self.beta = np.zeros([self.n_vessels, self.n_vessels, self.n_msgs])
+        self.beta_180 = np.zeros([self.n_vessels, self.n_vessels, self.n_msgs])
 
     # Functions for determining applicable rules -----------------------------------------------------------------------
     def determine_situations(self, vessel):
@@ -261,6 +262,7 @@ class AutoVerification:
 
         self.alpha[vessel.id, obst.id, i] = alpha
         self.beta[vessel.id, obst.id, i] = beta
+        self.beta_180[vessel.id, obst.id, i] = beta_180
 
         if i == 0:
             try:
@@ -316,18 +318,24 @@ class AutoVerification:
         #    y_width = abs(vessel.stateLonLat[1,i] - obst.stateLonLat[1,i])
         #    y_width = max(0.01, y_width)
         #
-        #    coast_inside = self.coastline.loc[(self.coastline['lon'] > (max(vessel.stateLonLat[0,i], obst.stateLonLat[0,i]) - x_width)) &\
-        #                                      (self.coastline['lon'] < (min(vessel.stateLonLat[0,i], obst.stateLonLat[0,i]) + x_width)) &\
-        #                                      (self.coastline['lat'] > (max(vessel.stateLonLat[1,i], obst.stateLonLat[1,i]) - y_width)) &\
-        #                                      (self.coastline['lat'] < (min(vessel.stateLonLat[1,i], obst.stateLonLat[1,i]) + y_width))].reset_index(drop = True)
+        #    coast_inside = self.coastline.loc[(self.coastline['lon'] > (max(vessel.stateLonLat[0, i],
+        #                                                                    obst.stateLonLat[0, i]) - x_width)) &\
+        #                                      (self.coastline['lon'] < (min(vessel.stateLonLat[0, i],
+        #                                                                    obst.stateLonLat[0,i]) + x_width)) &\
+        #                                      (self.coastline['lat'] > (max(vessel.stateLonLat[1, i],
+        #                                                                    obst.stateLonLat[1,i]) - y_width)) &\
+        #                                      (self.coastline['lat'] < \
+        #                                       (min(vessel.stateLonLat[1, i],
+        #                                            obst.stateLonLat[1,i]) + y_width))].reset_index(drop = True)
 
-        #   if len(coast_inside.index) != 0:
-        #       vector_1 = np.array([vessel.stateLonLat[0,i] - obst.stateLonLat[0,i], vessel.stateLonLat[1,i] - obst.stateLonLat[1,i]])
-        #       for lon, lat in zip(coast_inside.lon.tolist(), coast_inside.lat.tolist()):
-        #           vector_2 = np.array([vessel.stateLonLat[0,i] - lon, vessel.stateLonLat[1,i] - lat])
-        #           unit_vector_1 = vector_1 / np.linalg.norm(vector_1)
-        #           unit_vector_2 = vector_2 / np.linalg.norm(vector_2)
-        #           dot_product = np.dot(unit_vector_1, unit_vector_2)
+          # if len(coast_inside.index) != 0:
+          #     vector_1 = np.array([vessel.stateLonLat[0,i] - obst.stateLonLat[0,i],
+          #                          vessel.stateLonLat[1,i] - obst.stateLonLat[1,i]])
+          #     for lon, lat in zip(coast_inside.lon.tolist(), coast_inside.lat.tolist()):
+          #         vector_2 = np.array([vessel.stateLonLat[0,i] - lon, vessel.stateLonLat[1,i] - lat])
+          #         unit_vector_1 = vector_1 / np.linalg.norm(vector_1)
+          #         unit_vector_2 = vector_2 / np.linalg.norm(vector_2)
+          #         dot_product = np.dot(unit_vector_1, unit_vector_2)
         #
         #           angle_OVK = np.arccos(dot_product)
         #
@@ -357,77 +365,76 @@ class AutoVerification:
 
         return self.situation_matrix[vessel.id, obst.id, i]
 
-    def filterOutNonCompleteSituations(self, vessel, obst):
+    def filter_out_non_complete_situations(self, vessel, obst):
 
         debug = False
-        # if "STAVANGER" in vessel.name:
-        #    debug = True
 
-        if debug: print(vessel.name, " - ", obst.name)
+        if debug:
+            print(vessel.name, " - ", obst.name)
 
         if self.cpa_idx[vessel.id, obst.id] == 0 or \
                 self.cpa_idx[vessel.id, obst.id] >= np.where(np.isnan(vessel.speed) == False)[-1][-1]:
             self.situation_matrix[vessel.id, obst.id, :] = self.NAR
             return self.situation_matrix[vessel.id, obst.id, :]
 
-        ## Filter Head on situations
+        # Filter Head on situations
         if self.HO in self.situation_matrix[vessel.id, obst.id, :]:
             start = np.argmax(self.situation_matrix[vessel.id, obst.id, :] == self.HO)  # start of sit
             obst_yaw_start = obst.state[2, start]
-            end = start + np.argmax( \
+            end = start + np.argmax(
                 np.array([abs_ang_diff(a, obst_yaw_start) for a in obst.state[2, start:]]) > 0.5 * np.pi)
             end = end if end != start else self.n_msgs
 
             alpha_abs = abs(self.alpha[vessel.id, obst.id, start:end + 1])
             alpha_max = max(alpha_abs)
-            if alpha_max < 0.75 * np.pi:
+            if alpha_max < 0.5 * np.pi:
                 area = self.situation_matrix[vessel.id, obst.id] == self.HO
                 self.situation_matrix[vessel.id, obst.id, area] = self.NAR
             else:
-                beta_max = max(abs(self.beta[vessel.id, obst.id, start:end + 1]))
+                beta_max = max(abs(self.beta_180[vessel.id, obst.id, start:end + 1]))
 
-                if beta_max < 0.75 * np.pi:
+                if beta_max < 0.5 * np.pi:
                     area = self.situation_matrix[vessel.id, obst.id, :] == self.HO
                     self.situation_matrix[vessel.id, obst.id, area] = self.NAR
 
-        ## Filter Overtake stay on situations
+        # Filter Overtake stay on situations
         if self.OTSO in self.situation_matrix[vessel.id, obst.id, :]:
             # Start index of situation
             start = np.argmax(self.situation_matrix[vessel.id, obst.id, :] == self.OTSO)
 
             # The end index of situation is set to either when the obstacle ship have turned 
-            # 90 degrees from the initial yaw or the end of case if the difference is large enough
+            # 45 degrees from the initial yaw or the end of case if the difference is large enough
             obst_yaw_start = obst.state[2, start]
-            end = start + np.argmax( \
-                np.array([abs_ang_diff(a, obst_yaw_start) for a in obst.state[2, start:]]) > 0.5 * np.pi)
+            end = start + np.argmax(
+                np.array([abs_ang_diff(a, obst_yaw_start) for a in obst.state[2, start:]]) > 0.25 * np.pi)
             end = end if end != start else self.n_msgs
 
-            if debug: print("Situation (OT) start stop:", start, "--", end)
+            if debug:
+                print("Situation (OT) start stop:", start, "--", end)
 
             alpha_abs = abs(self.alpha[vessel.id, obst.id, start:end + 1])
             alpha_min = min(alpha_abs)
 
-            if alpha_min > 0.25 * np.pi or alpha_min == np.pi \
-                    or self.cpa_idx[vessel.id, obst.id] < start \
+            if alpha_min > 0.5 * np.pi or self.cpa_idx[vessel.id, obst.id] < start \
                     or self.cpa_idx[vessel.id, obst.id] > end:
                 area = self.situation_matrix[vessel.id, obst.id, :] == self.OTSO
                 self.situation_matrix[vessel.id, obst.id, area] = self.NAR
             else:
-                beta_abs = abs(self.beta[vessel.id, obst.id, start:end + 1])
+                beta_abs = abs(self.beta_180[vessel.id, obst.id, start:end + 1])
                 beta_max = max(beta_abs)
 
-                if beta_max < 0.75 * np.pi:
+                if beta_max < 0.5 * np.pi:
                     area = self.situation_matrix[vessel.id, obst.id, :] == self.OTSO
                     self.situation_matrix[vessel.id, obst.id, area] = self.NAR
 
-            #### CPA Criteria ####
-
+            # CPA Criteria
             alpha_cpa_abs = abs(self.alpha[vessel.id, obst.id, self.cpa_idx[vessel.id, obst.id]])
-            beta_cpa_abs = abs(self.beta[vessel.id, obst.id, self.cpa_idx[vessel.id, obst.id]])
+            beta_cpa_abs = abs(self.beta_180[vessel.id, obst.id, self.cpa_idx[vessel.id, obst.id]])
 
-            if debug: print("Alpha: ", alpha_cpa_abs, ", beta: ", beta_cpa_abs)
+            if debug:
+                print("Alpha_cpa: ", alpha_cpa_abs, ", beta_cpa_180: ", beta_cpa_abs)
 
-            if alpha_cpa_abs < 0.25 * np.pi or alpha_cpa_abs > 0.75 * np.pi:
+            if alpha_cpa_abs < np.pi / 6 or alpha_cpa_abs > 5 * np.pi / 6:
                 area = self.situation_matrix[vessel.id, obst.id, :] == self.OTSO
                 if debug:
                     print(area)
@@ -437,38 +444,37 @@ class AutoVerification:
                     print(area)
                     print(self.situation_matrix[vessel.id, obst.id, :])
 
-            if beta_cpa_abs < 0.25 * np.pi or beta_cpa_abs > 0.75 * np.pi:
+            if beta_cpa_abs < np.pi / 6 or beta_cpa_abs > 5 * np.pi / 6:
                 area = self.situation_matrix[vessel.id, obst.id, :] == self.OTSO
                 self.situation_matrix[vessel.id, obst.id, area] = self.NAR
 
-        ## Filter Overtake give way situations
+        # Filter Overtake give way situations
         if self.OTGW in self.situation_matrix[vessel.id, obst.id, :]:
             start = np.argmax(self.situation_matrix[vessel.id, obst.id, :] == self.OTGW)  # start of sit
             obst_yaw_start = obst.state[2, start]
 
-            end = start + np.argmax( \
+            end = start + np.argmax(
                 np.array([abs_ang_diff(a, obst_yaw_start) for a in obst.state[2, start:]]) > 0.5 * np.pi)
             end = end if end != start else self.n_msgs
 
             alpha_abs = abs(self.alpha[vessel.id, obst.id, start:end + 1])
             alpha_max = max(alpha_abs)
 
-            if alpha_max < 0.75 * np.pi or alpha_max == np.pi \
-                    or self.cpa_idx[vessel.id, obst.id] < start \
+            if alpha_max < 0.5 * np.pi or self.cpa_idx[vessel.id, obst.id] < start \
                     or self.cpa_idx[vessel.id, obst.id] > end:
                 area = self.situation_matrix[vessel.id, obst.id, :] == self.OTGW
                 self.situation_matrix[vessel.id, obst.id, area] = self.NAR
             else:
-                beta_abs = abs(self.beta[vessel.id, obst.id, start:end + 1])
+                beta_abs = abs(self.beta_180[vessel.id, obst.id, start:end + 1])
                 beta_min = min(beta_abs)
 
-                if beta_min > 0.25 * np.pi:
+                if beta_min > 0.5 * np.pi:
                     area = self.situation_matrix[vessel.id, obst.id, :] == self.OTGW
                     self.situation_matrix[vessel.id, obst.id, area] = self.NAR
 
-            #### CPA Criteria ####
+            # CPA Criteria
             alpha_cpa_abs = abs(self.alpha[vessel.id, obst.id, self.cpa_idx[vessel.id, obst.id]])
-            beta_cpa_abs = abs(self.beta[vessel.id, obst.id, self.cpa_idx[vessel.id, obst.id]])
+            beta_cpa_abs = abs(self.beta_180[vessel.id, obst.id, self.cpa_idx[vessel.id, obst.id]])
 
             if debug:
                 print("BEFORE, alpha:", alpha_cpa_abs, ", beta:", beta_cpa_abs)
@@ -486,16 +492,30 @@ class AutoVerification:
                 print("AFTER")
                 print(self.situation_matrix[vessel.id, obst.id, :])
 
-        # CROSSING #
+        # CROSSING
         if (self.CRGW or self.CRSO) in self.situation_matrix[vessel.id, obst.id, :]:
             from scipy.spatial.distance import cdist
 
-            XA = np.array(vessel.state[0:2, :]).transpose()
-            XB = np.array(obst.state[0:2, :]).transpose()
+            # Check that both vessels move more than 100 meters
+            xa = np.array(vessel.state[0:2, :]).transpose()
+            xb = np.array(obst.state[0:2, :]).transpose()
 
-            cdist = np.min(cdist(XA, XB, metric='euclidean'))
+            cdist = np.min(cdist(xa, xb, metric='euclidean'))
 
             if cdist > 100:
+                area = (self.situation_matrix[vessel.id, obst.id, :] == self.CRGW) | (
+                        self.situation_matrix[vessel.id, obst.id, :] == self.CRSO)
+                self.situation_matrix[vessel.id, obst.id, area] = self.NAR
+
+            # Check for at least one vessel crosses the other's LOS
+            sit = ((self.situation_matrix[vessel.id, obst.id, :] == self.CRGW)
+                   | (self.situation_matrix[vessel.id, obst.id, :] == self.CRSO))
+            start = np.argmax(sit)  # start of sit
+            alpha_sign_change = np.where(np.sign(self.alpha[vessel.id, obst.id, start:-1]) != np.sign(
+                self.alpha[vessel.id, obst.id, start + 1:]))[0] + 1 + start
+            beta_sign_change = np.where(np.sign(self.beta_180[vessel.id, obst.id, start:-1]) != np.sign(
+                self.beta_180[vessel.id, obst.id, start + 1:]))[0] + 1 + start
+            if len(alpha_sign_change) == 0 and len(beta_sign_change) == 0:
                 area = (self.situation_matrix[vessel.id, obst.id, :] == self.CRGW) | (
                         self.situation_matrix[vessel.id, obst.id, :] == self.CRSO)
                 self.situation_matrix[vessel.id, obst.id, area] = self.NAR
@@ -776,6 +796,7 @@ class AutoVerification:
                         if maneuver_idx is not None:
                             if range_diff < diff_man_dist:
                                 continue
+                                # colreg_type = self.situation_matrix[vessel.id, obst.id, start_idx:stop_idx].mean()
 
                         if printer_on:
                             print("NEW BEST")

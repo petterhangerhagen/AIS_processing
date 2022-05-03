@@ -77,14 +77,14 @@ def get_case_param_from_file(filename):
             sits = []
             sit_happened = False
             for k in range(AV.n_msgs):
-                if AV.entry_criteria(vessel, obst, k) != AV.NAR:  # Find applicable COLREG situations between all ships
+                if AV.entry_criteria(vessel, obst, k) != AV.NAR:  # Find applicable COLREG rules between all ships
                     sit_happened = True
                 if k == 0:
                     continue
                 if AV.situation_matrix[vessel.id, obst.id, k] != AV.situation_matrix[vessel.id, obst.id, k - 1]:
                     sits.append(k)
             if sit_happened:
-                AV.filterOutNonCompleteSituations(vessel, obst)
+                AV.filter_out_non_complete_situations(vessel, obst)
 
     start = ' - '
     end = '-60-sec'
