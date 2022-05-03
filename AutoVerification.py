@@ -841,6 +841,9 @@ class AutoVerification:
                 else:
                     maneuver_flag = False
 
+                if maneuver_idx is None:
+                    maneuver_flag = False
+
                 return maneuver_flag, man_number, maneuver_idx, maneuver_stop_idx, multi_man, pre_man_dist, pre_man_t_cpa, post_man_dist, post_man_t_cpa
 
         maneuver_made_own, man_number_own, maneuver_idx_own, maneuver_stop_idx_own, multi_man_own, pre_man_dist_own, pre_man_t_cpa_own, post_man_dist_own, post_man_t_cpa_own = getVesselParams(
