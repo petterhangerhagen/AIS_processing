@@ -9,3 +9,11 @@ TODO.txt
 *.sw
 __pycache__/*
 .DS_Store
+/AV_class_functions/__pycache__/*
+
+
+encs_south_selected/
+encs_west_selected/
+img/
+img_old/
+testing/

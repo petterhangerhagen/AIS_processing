@@ -1,4 +1,8 @@
+"""Requirements:"""
+import datetime
 import numpy as np
+
+
 def rotate(vec, ang):
     """
     :param vec: 2D vector
@@ -8,6 +12,7 @@ def rotate(vec, ang):
     r_mat = np.array([[np.cos(ang), -np.sin(ang)], [np.sin(ang), np.cos(ang)]])
     rot_vec = np.dot(r_mat, vec)
     return rot_vec
+
 
 def normalize_2pi(angle):
     """
@@ -25,6 +30,7 @@ def normalize_2pi(angle):
             angle += 2 * np.pi
         return angle
 
+
 def normalize_pi(angle):
     """
     :param angle: Angle in radians
@@ -40,6 +46,7 @@ def normalize_pi(angle):
         while angle < -np.pi:
             angle += 2 * np.pi
         return angle
+
 
 def normalize_360_deg(angle):
     """
@@ -57,6 +64,7 @@ def normalize_360_deg(angle):
             angle += 360
         return angle
 
+
 def normalize_180_deg(angle):
     """
     :param angle: Angle in degrees
@@ -72,6 +80,7 @@ def normalize_180_deg(angle):
             angle += 2 * 180
         return angle
 
+
 def abs_ang_diff(minuend, subtrahend):
     """
     Returns the smallest difference between two angles
@@ -83,6 +92,7 @@ def abs_ang_diff(minuend, subtrahend):
     if np.isnan(minuend) or np.isnan(subtrahend):
         return 2*np.pi
     return np.pi - abs(abs(minuend - subtrahend) - np.pi)
+
 
 def signed_ang_diff(minuend, subtrahend):
     """
@@ -96,22 +106,6 @@ def signed_ang_diff(minuend, subtrahend):
     diff = (diff + np.pi) % (2*np.pi) - np.pi
     return diff
 
-def format_func(value, tick_number):
-    # find number of multiples of pi/4
-    N = int(np.round(4 * value / np.pi))
-    if N == 0:
-        return "0"
-    elif N == 1:
-        return r"$\pi/4$"
-    elif N == 2:
-        return r"$\pi/2$"
-    elif N == 3:
-        return r"${0}\pi/4$".format(N)
-    elif N % 4 > 0:
-        return r"${0}\pi/4$".format(N)
-    else:
-        return r"${0}\pi$".format(N // 4)
-
 def getMmsiList(df):
     """
     Returns a list of all different mmsi contained in DataFrame
@@ -121,6 +115,7 @@ def getMmsiList(df):
     """
     temp_list = df.mmsi.unique().tolist()
     return temp_list
+
 
 def getListOfMmsiDf(df):
     """
@@ -133,6 +128,7 @@ def getListOfMmsiDf(df):
     mmsiDfList = [df[df.mmsi == mmsi].reset_index(drop = True) for mmsi in mmsiList]
     return mmsiDfList
 
+
 def knots_to_mps(knots):
     """
     Transform velocity from knots to m/s
@@ -144,6 +140,7 @@ def knots_to_mps(knots):
     mps = knots*1.852/3.6
     return mps
 
+
 def knots_to_kmph(knots):
     """
     Transform velocity from knots to km/h
@@ -152,8 +149,9 @@ def knots_to_kmph(knots):
     """
     if np.isnan(knots) or (knots >= 102.3):
         return np.nan
-    kmph = knots*1.852
-    return kmph
+    kmphs = knots*1.852
+    return kmphs
+
 
 def getDisToMeter(lon1, lat1, lon2, lat2, **kwarg):
     """
@@ -183,6 +181,7 @@ def getDisToMeter(lon1, lat1, lon2, lat2, **kwarg):
 
     return round(d, 1)
 
+
 def convertSecondsToTime(seconds):
     """
     Convert total seconds to datetime-stamp
@@ -194,21 +193,18 @@ def convertSecondsToTime(seconds):
     seconds %= 3600
     minutes = seconds // 60
     seconds %= 60
-    return datetime.time(hour = hour, minute = minutes, second = seconds)
+    return datetime.time(hour=hour, minute=minutes, second=seconds)
 
-def calcTrajectory(vessel, index):
+
+def calc_trajectory(vessel, index):
     """
     Calculates a projected trajectory of an vessel from an index
     """
 
     speed = vessel.speed[index]
-    lonStart, latStart = vessel.stateLonLat[:, index]
+    lon_start, lat_start = vessel.stateLonLat[:, index]
 
-    posNow  = np.array([vessel.state[0,index], vessel.state[0,index]])
-    posPre = np.array([vessel.state[0,index-1], vessel.state[0,index-1]])
-    newestVector = posNow - posPre
-
-    course = np.rad2deg(np.arctan2(newestVector[1], newestVector[0]))
+    course = vessel.true_heading[index - 1]
     if course < 0:
         course += 360
         
@@ -216,24 +212,25 @@ def calcTrajectory(vessel, index):
 
     time_passed = 0
 
-    trajectoryLonLat = np.empty([2, length])
+    trajectory_lon_lat = np.empty([2, length])
 
     for i in range(length):
         time_passed += 1
-        distance = speed*time_passed*60 # TODO: 1 minute hardcoded
+        distance = speed*time_passed*60  # TODO: 1 minute hardcoded
 
-        trajectoryLonLat[0,i] = lonStart + np.sin(np.deg2rad(course))*distance*360/(6362.132*1000*np.pi*2*np.cos(np.deg2rad(latStart)))
-        trajectoryLonLat[1,i] = latStart + np.cos(np.deg2rad(course))*distance/111040
+        trajectory_lon_lat[0, i] = lon_start + np.sin(np.deg2rad(course))*distance*360/(6362.132*1000*np.pi*2*np.cos(np.deg2rad(lat_start)))
+        trajectory_lon_lat[1, i] = lat_start + np.cos(np.deg2rad(course))*distance/111040
 
-    return trajectoryLonLat
+    return trajectory_lon_lat
+
 
 def calcPredictedCPA(vessel1, vessel2, index):
     ##################
     printer_on = False 
     ##################
 
-    vessel1_trajectory = calcTrajectory(vessel1, index)
-    vessel2_trajectory = calcTrajectory(vessel2, index)
+    vessel1_trajectory = calc_trajectory(vessel1, index)
+    vessel2_trajectory = calc_trajectory(vessel2, index)
 
     distance = getDisToMeter(vessel1_trajectory[0, 0], vessel1_trajectory[1, 0], vessel2_trajectory[0, 0], vessel2_trajectory[1, 0])
     dist     = distance
