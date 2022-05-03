@@ -24,74 +24,11 @@ save_folder = 'img'
 multiple = False
 cpu_usage = 80
 
-#paths = ['./encs_selected', './encs_north', './encs_south']s
+# paths = ['./encs_selected', './encs_north', './encs_south']s
 paths = ['./encs_west_selected']
 
 
 # ---------------------------------------------------------------------------------------------------
-# Combined algorithm
-def get_case_param_from_file(filename, specific_own_name, specific_obst_names, man_idx, q, df_row):
-    if not multiple:
-        print(filename)
-
-    ship_path = './' + root.split('/')[1] + '/full_shipdata.csv'
-    av = AutoVerification(ais_path=os.path.join(root, filename),
-                          ship_path=ship_path,
-                          r_colregs_2_max=5000,
-                          r_colregs_3_max=3000,
-                          r_colregs_4_max=400,
-                          epsilon_course=10,
-                          epsilon_speed=2.5,
-                          alpha_critical_13=45.0,
-                          alpha_critical_14=13.0,
-                          alpha_critical_15=-10.0,
-                          phi_OT_min=112.5,
-                          phi_OT_max=247.5)
-
-    av.find_ranges()  # Find ranges between all ships
-
-    for vessel in av.vessels:
-        av.find_maneuver_detect_index(vessel)  # Find maneuvers made by ownship
-
-        for obst in av.vessels:
-            if vessel.id == obst.id:
-                continue
-            sits = []
-            sit_happened = False
-            for k in range(av.n_msgs):
-                if av.entry_criteria(vessel, obst, k) != av.NAR:  # Find applicable COLREG rules between all ships
-                    sit_happened = True
-                if k == 0:
-                    continue
-                if av.situation_matrix[vessel.id, obst.id, k] != av.situation_matrix[vessel.id, obst.id, k - 1]:
-                    sits.append(k)
-            if sit_happened:
-                av.filterOutNonCompleteSituations(vessel, obst)
-
-    for vessel in av.vessels:
-        if vessel.travel_dist < 500:
-            continue
-        plot = False
-        for obst in av.vessels:
-            if vessel.id != obst.id and not all(x == 0 for x in av.situation_matrix[vessel.id, obst.id, :]):
-                arr = av.situation_matrix[vessel.id, obst.id, :]
-                arr[0] = av.NAR
-                indices = np.where(np.logical_and(arr[:-1] != arr[1:], np.logical_or(arr[:-1] == 0, arr[1:] == 0)))[0]
-                if len(indices) > 0:
-                    plot = True
-
-        if plot:
-            if specific_own_name != '' and specific_own_name not in vessel.name:
-                continue
-
-            av.OWN_SHIP = vessel.id
-            try:
-                q.put((av.plot_trajectories(show_trajectory_at=man_idx, specific_obst_names=specific_obst_names,
-                                            save=True, save_folder=save_folder), df_row))
-            except Exception as ex:
-                print(ex)
-
-
 def get_params_and_plot(para_df, os_df, tg_df, q, df_row):
     try:
         q.put((plot_situation(para_df, os_df, tg_df), df_row))
