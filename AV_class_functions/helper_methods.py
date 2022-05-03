@@ -196,19 +196,15 @@ def convertSecondsToTime(seconds):
     return datetime.time(hour=hour, minute=minutes, second=seconds)
 
 
-def calcTrajectory(vessel, index):
+def calc_trajectory(vessel, index):
     """
     Calculates a projected trajectory of an vessel from an index
     """
 
     speed = vessel.speed[index]
-    lonStart, latStart = vessel.stateLonLat[:, index]
+    lon_start, lat_start = vessel.stateLonLat[:, index]
 
-    posNow  = np.array([vessel.state[0,index], vessel.state[0,index]])
-    posPre = np.array([vessel.state[0,index-1], vessel.state[0,index-1]])
-    newestVector = posNow - posPre
-
-    course = np.rad2deg(np.arctan2(newestVector[1], newestVector[0]))
+    course = vessel.true_heading[index - 1]
     if course < 0:
         course += 360
         
@@ -216,16 +212,16 @@ def calcTrajectory(vessel, index):
 
     time_passed = 0
 
-    trajectoryLonLat = np.empty([2, length])
+    trajectory_lon_lat = np.empty([2, length])
 
     for i in range(length):
         time_passed += 1
-        distance = speed*time_passed*60 # TODO: 1 minute hardcoded
+        distance = speed*time_passed*60  # TODO: 1 minute hardcoded
 
-        trajectoryLonLat[0,i] = lonStart + np.sin(np.deg2rad(course))*distance*360/(6362.132*1000*np.pi*2*np.cos(np.deg2rad(latStart)))
-        trajectoryLonLat[1,i] = latStart + np.cos(np.deg2rad(course))*distance/111040
+        trajectory_lon_lat[0, i] = lon_start + np.sin(np.deg2rad(course))*distance*360/(6362.132*1000*np.pi*2*np.cos(np.deg2rad(lat_start)))
+        trajectory_lon_lat[1, i] = lat_start + np.cos(np.deg2rad(course))*distance/111040
 
-    return trajectoryLonLat
+    return trajectory_lon_lat
 
 
 def calcPredictedCPA(vessel1, vessel2, index):
@@ -233,8 +229,8 @@ def calcPredictedCPA(vessel1, vessel2, index):
     printer_on = False 
     ##################
 
-    vessel1_trajectory = calcTrajectory(vessel1, index)
-    vessel2_trajectory = calcTrajectory(vessel2, index)
+    vessel1_trajectory = calc_trajectory(vessel1, index)
+    vessel2_trajectory = calc_trajectory(vessel2, index)
 
     distance = getDisToMeter(vessel1_trajectory[0, 0], vessel1_trajectory[1, 0], vessel2_trajectory[0, 0], vessel2_trajectory[1, 0])
     dist     = distance
