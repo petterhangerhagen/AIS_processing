@@ -787,20 +787,29 @@ class AutoVerification:
                         if np.isnan(range_val_start) or np.isnan(range_val_stop):
                             continue
                         range_diff = range_val_stop - range_val_start
+                        course_diff = signed_ang_diff(vessel.state[2, vessel.maneuver_start_stop[i][1]],
+                                                      vessel.state[2, vessel.maneuver_start_stop[i][0]])
 
                         if printer_on:
                             print("R-start:", range_val_start)
                             print("R-stop:", range_val_stop)
                             print("R-diff:", range_diff)
 
-                        if maneuver_idx is not None:
-                            if range_diff < diff_man_dist:
+                        if maneuver_idx is None:
+                            if range_diff < 0:  # The maneuver decreases DCPA
                                 continue
-                                # colreg_type = self.situation_matrix[vessel.id, obst.id, start_idx:stop_idx].mean()
+                        else:
+                            if range_diff < diff_man_dist:  # Chose maneuver causing the largest increase in DCPA
+                                continue
+
+                        sit = self.situation_matrix[vessel.id, obst.id, start_idx]
+                        if (sit == self.CRGW or sit == self.HO) and course_diff > 0:  # Port turn
+                            continue
 
                         if printer_on:
                             print("NEW BEST")
                         maneuver_idx = vessel.maneuver_start_stop[i][0]
+                        maneuver_stop_idx = vessel.maneuver_start_stop[i][1]
                         man_number = i
                         pre_man_dist, pre_man_t_cpa = range_val_start, time_to_cpa_start
                         post_man_dist, post_man_t_cpa = range_val_stop, time_to_cpa_stop
@@ -1217,7 +1226,7 @@ class AutoVerification:
                 label = vessel.name if not anon else "Ownship"
                 own_label = vessel.name if not anon else "Ownship"
                 if show_trajectory_at is not None:
-                    calcTra = calcTrajectory(vessel, show_trajectory_at)
+                    calcTra = calc_trajectory(vessel, show_trajectory_at)
                     x, y = m(calcTra[0, :], calcTra[1, :])
                     ax1.plot(x, y, '+', color=color)
             else:
