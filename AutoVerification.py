@@ -734,6 +734,10 @@ class AutoVerification:
         if not self.ranges_set:
             self.find_ranges()
 
+        cpa_idx = self.cpa_idx[own_vessel.id, obst_vessel.id]
+        if self.ranges[own_vessel.id, obst_vessel.id, cpa_idx] < 50:
+            return None
+
         def getVesselParams(vessel, obst):
             if not vessel.maneuvers_found:
                 printer_on = False  # Toggle printer
