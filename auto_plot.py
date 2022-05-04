@@ -120,13 +120,19 @@ def plot_situation(para_df, os_df, tg_df):
         pred_ln, = mapping.plot(pred_x, pred_y, color='k', linestyle=':')
 
         man_start_mrk = mapping.scatter(os_x[maneuver_start], os_y[maneuver_start], c='seagreen', marker='o', s=80)
+        obst_at_man_mrk = mapping.scatter(tg_x[maneuver_start], tg_y[maneuver_start], edgecolors='seagreen', marker='o',
+                                          facecolors='none', s=80)
         if maneuver_stop is not None:
             man_stop_mrk = mapping.scatter(os_x[maneuver_stop], os_y[maneuver_stop], c='darkorange', marker='o', s=80)
             handles.append((man_start_mrk, man_stop_mrk))
+            handles.append(obst_at_man_mrk)
             labels.append('maneuver start/stop')
+            labels.append('obst pos at os man')
         else:
             handles.append(man_start_mrk)
+            handles.append(obst_at_man_mrk)
             labels.append('maneuver start')
+            labels.append('obst pos at os man')
 
         handles.append(pred_ln)
         handles.append('pre manuver pred')
