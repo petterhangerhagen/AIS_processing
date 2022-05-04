@@ -28,12 +28,12 @@ TRAJ = None  # Set to None if automatic trajectory detection
 cpu_usage = 80
 overwrite = False
 
-paths = ['./encs_selected', './encs_north', './encs_south']
+paths = ['./encs']
 
 
 # ---------------------------------------------------------------------------------------------------
 # Combined algorithm
-def get_case_param_from_file(filename):
+def get_case_param_from_file(filename, root):
     if not multiple and unique_case != '' and unique_case not in filename:
         return
 
@@ -159,38 +159,39 @@ def get_case_param_from_file(filename):
 
 
 #################################################################################
-print('STARTING')
+if __name__ == '__main__':
+    print('STARTING')
 
 
-for root, dirs, files in chain.from_iterable(os.walk(path) for path in paths):
-    proc = []
-    import random
-    import sys
-    import psutil
+    for root, dirs, files in chain.from_iterable(os.walk(path) for path in paths):
+        proc = []
+        import random
+        import sys
+        import psutil
 
-    random.shuffle(dirs)
-    random.shuffle(files)
-    number_of_files = len(files)
+        random.shuffle(dirs)
+        random.shuffle(files)
+        number_of_files = len(files)
 
-    for count, file_name in enumerate(files):
-        if file_name.endswith("60-sec.csv"):
-            if not multiple:
-                get_case_param_from_file(file_name)
-                continue
-            p = mp.Process(target=get_case_param_from_file, args=(file_name,))
-            proc.append(p)
-            p.start()
+        for count, file_name in enumerate(files):
+            if file_name.endswith("60-sec.csv"):
+                if not multiple:
+                    get_case_param_from_file(file_name, root)
+                    continue
+                p = mp.Process(target=get_case_param_from_file, args=(file_name, root))
+                proc.append(p)
+                p.start()
 
-            sys.stdout.flush()
-            sys.stdout.write(
-                "Working file %s/%s - children working %s        \r " % (count, number_of_files, len(proc)))
+                sys.stdout.flush()
+                sys.stdout.write(
+                    "Working file %s/%s - children working %s        \r " % (count, number_of_files, len(proc)))
 
-            while psutil.cpu_percent() > cpu_usage:
-                for ps in proc:
-                    ps.join(timeout=0)
-                    if not ps.is_alive():
-                        proc.remove(ps)
-                time.sleep(0.5)
+                while psutil.cpu_percent() > cpu_usage:
+                    for ps in proc:
+                        ps.join(timeout=0)
+                        if not ps.is_alive():
+                            proc.remove(ps)
+                    time.sleep(0.5)
 
-    while len(mp.active_children()) > 0:
-        time.sleep(0.5)
+        while len(mp.active_children()) > 0:
+            time.sleep(0.5)

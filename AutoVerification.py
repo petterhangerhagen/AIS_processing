@@ -1395,7 +1395,7 @@ class Vessel:
         self.dT = None
         self.id = None
         self.length = 0
-        self.width = 5
+        self.width = 0
         self.type = 0
 
         self.maneuver_detect_idx = None

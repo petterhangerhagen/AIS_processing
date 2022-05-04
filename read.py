@@ -25,8 +25,8 @@ for root, directory, files in os.walk('./para/'):
                                 'obst_length': float,
                                 'own_width': float,
                                 'obst_width': float,
-                                'own_type': int,
-                                'obst_type': int,
+                                'own_type': float,
+                                'obst_type': float,
                                 'own_nav_status': float,
                                 'obst_nav_status': float,
                                 'own_speed': float,
@@ -66,7 +66,8 @@ for root, directory, files in os.walk('./para/'):
 
                 df = df[df['maneuver_index_own'] != df['stop_idx']]
                 df = df[df['maneuver_index_own'] > df['start_idx']].reset_index(drop=True)
-            except:
+            except Exception as ex:
+                print('Filename: ', filename, '\n Esception: ', ex, '\n')
                 continue
             if len(df) == 0:
                 continue
@@ -88,9 +89,11 @@ for root, directory, files in os.walk('./para/'):
             data = data.append(df)
 
 print(data)
-data = data.loc[data.apply(lambda x:
-                           x['r_cpa'] > 4*np.min(np.array([x['own_width'], x['obst_width']]))
-                           if np.min(np.array([x['own_width'], x['obst_width']])) != 0
-                           else x['r_cpa'] > 4, axis=1)]
+
+# Delete? Move to another place?
+#data = data.loc[data.apply(lambda x:
+#                           x['r_cpa'] > 4*np.min(np.array([x['own_width'], x['obst_width']]))
+#                           if np.min(np.array([x['own_width'], x['obst_width']])) != 0
+#                           else x['r_cpa'] > 4, axis=1)]
 
 data.to_csv('superPara.csv', sep=';', index=False)

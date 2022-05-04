@@ -14,6 +14,8 @@ __pycache__/*
 
 encs_south_selected/
 encs_west_selected/
+encs/
 img/
 img_old/
 testing/
+superPara_img.csv
