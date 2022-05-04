@@ -2,7 +2,7 @@ from pytest import param
 from sqlalchemy import case
 from AutoVerification import AutoVerification
 import os
-import time
+import time as t
 import pandas as pd
 import numpy as np
 import multiprocessing as mp
@@ -18,14 +18,14 @@ Use read.py to merge all csv files in /para/ to one file
 Requirements:                                                
 -Basemap (used in conjunction with conda and python 3.8.10) """
 
-csv_file_name = './testing/Params - 01-02-2019, 12-28-11 - 6MC0Q.csv'
+csv_file_name = 'superPara.csv'
 save_folder = 'img'
 
-multiple = False
+multiple = True
 cpu_usage = 80
 
 # paths = ['./encs_selected', './encs_north', './encs_south']s
-paths = ['./encs_west_selected']
+paths = ['./encs']
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -63,7 +63,7 @@ def plot_situation(para_df, os_df, tg_df):
     lat_bounds = [y_min - margin, y_max + margin]
 
     maneuver_start = int(para_df['maneuver_index_own'])
-    if param_df['maneuver_stop_idx_own'] is None:
+    if para_df['maneuver_stop_idx_own'] is None:
         maneuver_stop = None
     else:
         maneuver_stop = int(para_df['maneuver_stop_idx_own'])
@@ -144,8 +144,8 @@ def plot_situation(para_df, os_df, tg_df):
 
     fig.set_size_inches(10.4, 8.8)
 
-    image_name = './' + str(save_folder) + '/' + str(para_df['own_name']) + '-' + str(para_df['obst_name']) + '-' \
-                 + str(para_df['case']) + '.png'
+    image_name = './' + str(save_folder) + '/' + str(para_df['own_mmsi']) + '-' + str(para_df['obst_mmsi']) + '-' \
+                 + str(para_df['case']) + '_' + str(para_df['COLREG']) + '.png'
     plt.savefig(image_name)
     
     return image_name
@@ -240,11 +240,13 @@ if __name__ == '__main__':
                     obst_mmsi = param_df.obst_mmsi.tolist()[i]      
                     maneuver_idx = param_df.maneuver_index_own.tolist()[i]
                     maneuver_made = param_df.maneuver_made_own.tolist()[i]
+                    input(param_df.maneuver_made_own.tolist())
+                    input(type(param_df.maneuver_made_own.tolist()[i]))
                     row = param_df.index.tolist()[i]
 
                     ownship_df = ais_df.loc[ais_df['mmsi'] == own_mmsi] 
                     obst_df = ais_df.loc[ais_df['mmsi'] == obst_mmsi]   
-                    sit_df = param_df.iloc[row] 
+                    sit_df = param_df.iloc[i] 
 
                     if 'img_name' in df_read:
                         val = df_read.at[row, 'img_name']
@@ -290,7 +292,7 @@ if __name__ == '__main__':
                                     df_read = save2dataframe(img_name, df_read, row)
 
                                     write2csv(df_read)
-                        time.sleep(0.5)
+                        t.sleep(0.5)
 
     sys.stdout.flush()
     print("FINISHING")
