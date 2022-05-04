@@ -246,8 +246,6 @@ if __name__ == '__main__':
                     obst_mmsi = param_df.obst_mmsi.tolist()[i]      
                     maneuver_idx = param_df.maneuver_index_own.tolist()[i]
                     maneuver_made = param_df.maneuver_made_own.tolist()[i]
-                    input(param_df.maneuver_made_own.tolist())
-                    input(type(param_df.maneuver_made_own.tolist()[i]))
                     row = param_df.index.tolist()[i]
 
                     ownship_df = ais_df.loc[ais_df['mmsi'] == own_mmsi] 
@@ -259,7 +257,7 @@ if __name__ == '__main__':
                         if isinstance(val, str):
                             if val != '':
                                 continue
-                    elif not maneuver_made:
+                    if not maneuver_made:
                         continue
 
                     if not multiple:
@@ -309,6 +307,7 @@ if __name__ == '__main__':
                 proc.remove(ps)
 
                 if not queue.empty():
+                    img_name, row = queue.get()
                     df_read = save2dataframe(img_name, df_read, row)
                     write2csv(df_read)
     while not queue.empty():
