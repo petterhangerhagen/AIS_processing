@@ -25,8 +25,9 @@ class AutoVerification:
     HO = 3  # Head on situation
 
     def __init__(self,
-                 ais_path=[],
-                 ship_path=[],
+                # # #  ais_path=[],
+                # # #  ship_path=[],
+                 vessels,
                  r_colregs_2_max=5000,
                  r_colregs_3_max=3000,
                  r_colregs_4_max=400,
@@ -78,26 +79,28 @@ class AutoVerification:
         #    #print("Could not read coastline.csv")
         #    self.using_coastline = False 
 
-        self.vessels = []
-        if len(ais_path) != 0:
-            self.read_AIS(ais_path, ship_path)
-
-        # Just a slightly convoluted method of storing case name/code
-        case_name = ais_path.replace("-sec.csv", "")
-        self.case_name = case_name
-        for i in reversed(range(len(case_name))):
-            if ais_path[i] == "-":
-                self.case_name = case_name.replace(case_name[i - len(case_name):], "")[-5:]
-                break
-
-        self.n_vessels = len(self.vessels)
-        if self.n_vessels == 0:
-            print("No vessels in file:", ais_path)
-            return
-
+        self.vessels = vessels
+        self.n_vessels = len(vessels)
         self.n_msgs = self.vessels[0].n_msgs
-        for vessel in self.vessels:
-            self.n_msgs = min(self.n_msgs, vessel.n_msgs)
+        # # # if len(ais_path) != 0:
+        # # #     self.read_AIS(ais_path, ship_path)
+
+        # # # # Just a slightly convoluted method of storing case name/code
+        # # # case_name = ais_path.replace("-sec.csv", "")
+        # # # self.case_name = case_name
+        # # # for i in reversed(range(len(case_name))):
+        # # #     if ais_path[i] == "-":
+        # # #         self.case_name = case_name.replace(case_name[i - len(case_name):], "")[-5:]
+        # # #         break
+
+        # # # self.n_vessels = len(self.vessels)
+        # # # if self.n_vessels == 0:
+        # # #     print("No vessels in file:", ais_path)
+        # # #     return
+
+        # # # self.n_msgs = self.vessels[0].n_msgs
+        # # # for vessel in self.vessels:
+        # # #     self.n_msgs = min(self.n_msgs, vessel.n_msgs)
 
         self.r_colregs = [r_colregs_2_max, r_colregs_3_max, r_colregs_4_max]
         self.r_detect = r_colregs_2_max  # Set detection time equal to time when COLREGS start applying
@@ -545,7 +548,7 @@ class AutoVerification:
                         np.argmax(self.ranges[vessel.id, obst.id] <= self.r_detect)
                     r_cpa = np.min(self.ranges[vessel.id, obst.id])
                     self.cpa_idx[(vessel.id, obst.id), (obst.id, vessel.id)] = \
-                        np.argmax(self.ranges[vessel.id, obst.id] == r_cpa)
+                        np.argmax(self.ranges[vessel.id, obst.id] == r_cpa) 
         self.ranges_set = True
 
     def find_relative_heading(self):
