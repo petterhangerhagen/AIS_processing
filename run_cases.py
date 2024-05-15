@@ -161,6 +161,7 @@ def get_case_param_from_file(filename, root):
 #################################################################################
 if __name__ == '__main__':
     print('STARTING')
+    print(paths)
 
 
     for root, dirs, files in chain.from_iterable(os.walk(path) for path in paths):
