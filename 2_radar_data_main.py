@@ -1,12 +1,12 @@
 import numpy as np
 from AutoVerification import AutoVerification, Vessel
 from scipy.ndimage.filters import gaussian_filter
-
+import plotting
 
 def read_out_radar_data():
     # The message need to be of this form [x y yaw u v]
     vessels = []
-    data = np.load("colreg_tracks_old.npy", allow_pickle=True).item()
+    data = np.load("npy_files/colreg_tracks_old.npy", allow_pickle=True).item()
 
     timestamps_dict = {}
 
@@ -243,6 +243,9 @@ if __name__ == "__main__":
         print("\n")
         print("Delta speed:")
         print(vessel.delta_speed )
+        # plotting.plot_single_vessel(vessel)
+
+
 
         for obst in AV.vessels:
             if vessel.id == obst.id:
@@ -259,7 +262,7 @@ if __name__ == "__main__":
             if sit_happened:
                 AV.filter_out_non_complete_situations(vessel, obst)
         
-
+        AV.determine_situations(vessel)
 
 
 
