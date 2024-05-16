@@ -591,7 +591,7 @@ class AutoVerification:
         if vessel.maneuvers_searched:
             return
 
-        if vessel.travel_dist < 1000:
+        if vessel.travel_dist < 50:    #1000:
             vessel.maneuver_detect_idx = np.array([])
             vessel.delta_course = vessel.delta_course([])
             vessel.delta_speed = []
