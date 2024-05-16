@@ -12,13 +12,10 @@ import sys
 # # # HO = 3  # Head on situation
 
 colors = ['#ff7f0e','#1f77b4', '#2ca02c','#c73838','#c738c0',"#33A8FF",'#33FFBD']  # Orange, blå, grønn, rød, rosa, lyse blå, turkis
-
 # blue_colors = ['#419ede','#1f77b4', '#144c73']
 blue_colors = ['#2b93db','#1f77b4', '#1b699e']
-
 # green_colors = ['#4bce4b','#2ca02c', '#1c641c']
 green_colors = ['#32b432','#2ca02c', '#278c27']
-
 
 situation_dict = {
     -3: ["OP", "Obstacle passed", colors[0]],
@@ -73,29 +70,7 @@ def start_plot():
 
     return ax, origin_x, origin_y
 
-def plot_single_vessel_old(vessel,ax,origin_x,origin_y, color):
-    
-    x, y, psi, _, _ = vessel.state
-    ax.plot(x + origin_x, y + origin_y, markersize=10)
-
-    manuver_idx = vessel.maneuver_detect_idx
-    for idx in manuver_idx:
-        ax.scatter(x[idx] + origin_x, y[idx] + origin_y, color="red")
-    
-    # manuver_start_stop = vessel.maneuver_start_stop
-    # # for start, stop in manuver_start_stop:
-    # #     ax.plot(x[start:stop] + origin_x, y[start:stop] + origin_y, color="red")
-
-    # delta_course = vessel.delta_course
-
-    # delta_speed = vessel.delta_speed
-    # print(len(delta_speed))
-    # print(len(delta_course))
-
-    # plt.show()
-    # sys.exit()
-
-def plot_single_vessel(vessel,ax,origin_x,origin_y, color):
+def plot_single_vessel(vessel,ax,origin_x,origin_y):
     x, y, psi, _, _ = vessel.state
 
     # Plot the grayscale line
@@ -135,8 +110,7 @@ def plot_single_vessel(vessel,ax,origin_x,origin_y, color):
     font_size = 17
     ax.legend(handles=legend_elements, fontsize=font_size, loc='lower right')
 
-
-def plot_colreg_situation(vessel, situation_matrix, ax, origin_x, origin_y, color):
+def plot_colreg_situation(vessel, situation_matrix, ax, origin_x, origin_y):
     x, y, psi, _, _ = vessel.state
 
     situation_matrix = situation_matrix.copy()
@@ -146,7 +120,7 @@ def plot_colreg_situation(vessel, situation_matrix, ax, origin_x, origin_y, colo
             continue
         # Skip if there is no situation
         if np.all(situation_matrix[i] == 0):
-            print(f"No situation with vessel {i}")
+            # print(f"No situation with vessel {i}")
             continue
 
         # Get the indices of the situation and plot them

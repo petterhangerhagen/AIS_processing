@@ -5,10 +5,10 @@ import plotting
 import sys
 import matplotlib.pyplot as plt
 
-def read_out_radar_data():
+def read_out_radar_data(data_file="npy_files/colreg_tracks.npy"):
     # The message need to be of this form [x y yaw u v]
     vessels = []
-    data = np.load("npy_files/colreg_tracks_old.npy", allow_pickle=True).item()
+    data = np.load(data_file, allow_pickle=True).item()
 
     timestamps_dict = {}
 
@@ -22,7 +22,6 @@ def read_out_radar_data():
     for vessel_id, timestamps in timestamps_dict.items():
         total_timestamps.update(timestamps)
     total_timestamps = sorted(list(total_timestamps))
-    print(len(total_timestamps))
 
     for vessel_id, track in data.items():
         if vessel_id == 1:
@@ -94,14 +93,6 @@ def read_out_radar_data():
                 break
             if k == len(total_timestamps) - 1:
                 vessel.nan_idx[1] = k
-            
-           
-
-        # vessel.state[0] = x_positions_new
-        # vessel.state[1] = y_positions_new
-        # vessel.state[2] = yaws_new
-        # vessel.state[3] = x_velocities_new
-        # vessel.state[4] = y_velocities_new
 
         sog = np.sqrt(np.square(vessel.state[3]) + np.square(vessel.state[4]))
         vessel.speed = sog
@@ -120,7 +111,6 @@ def read_out_radar_data():
                 # Calculate derivative of speed
                 speed = np.array(vessel.speed)
 
-                from scipy.ndimage.filters import gaussian_filter
                 target_area = np.isnan(speed) == False
                 speed[target_area] = gaussian_filter(speed[target_area], sigma=1)
 
@@ -187,61 +177,18 @@ def read_out_radar_data():
             vessel.id = id_idx
     return vessels
 
-def find_ranges(vessels):
-    n_msgs = vessels[0].n_msgs
-    n_vessels = len(vessels)
-    ranges = np.zeros([n_vessels, n_vessels, n_msgs], dtype=float)
-    # print(ranges)
-    # print(ranges.shape)
-    ranges_set = False
-    detection_idx = np.zeros([n_vessels, n_vessels], dtype=int)
-    r_detect = 50  
-    cpa_idx = np.zeros([n_vessels, n_vessels], dtype=int)
-
-    for vessel in vessels:
-        for obst in vessels:
-            if vessel.id < obst.id:
-                for i in range(n_msgs):
-                    print(vessel.id, obst.id, i)
-                    ranges[(vessel.id, obst.id), (obst.id, vessel.id), i] = \
-                        np.linalg.norm(vessel.state[0:2, i] - obst.state[0:2, i])
-                detection_idx[(vessel.id, obst.id), (obst.id, vessel.id)] = \
-                    np.argmax(ranges[vessel.id, obst.id] <= r_detect)
-                r_cpa = np.min(ranges[vessel.id, obst.id])
-                cpa_idx[(vessel.id, obst.id), (obst.id, vessel.id)] = \
-                    np.argmax(ranges[vessel.id, obst.id] == r_cpa) 
-    ranges_set = True
-
 if __name__ == "__main__":
-
+    data_file = "npy_files/colreg_tracks.npy"
     r_colregs_2_max=50
     r_colregs_3_max=30
     r_colregs_4_max=4
 
-    vessels = read_out_radar_data()
+    vessels = read_out_radar_data(data_file=data_file)
     AV = AutoVerification(vessels=vessels, r_colregs_2_max=r_colregs_2_max, r_colregs_3_max=r_colregs_3_max, r_colregs_4_max=r_colregs_4_max)
     AV.find_ranges()
 
     for vessel in AV.vessels:
         AV.find_maneuver_detect_index(vessel)  # Find maneuvers made by ownship
-        print("##############################################")
-        print(f"Vessel id = {vessel.id}")
-        print("##############################################")
-        print("Maneuver detect index:")
-        print(vessel.maneuver_detect_idx)
-        print("\n")
-        print("Maneuver start stop:")
-        print(vessel.maneuver_start_stop )
-        print("\n")
-        print("Delta course:")
-        print(vessel.delta_course)
-        print("\n")
-        print("Delta speed:")
-        print(vessel.delta_speed )
-        # plotting.plot_single_vessel(vessel)
-
-
-
         for obst in AV.vessels:
             if vessel.id == obst.id:
                 continue
@@ -261,13 +208,11 @@ if __name__ == "__main__":
     for vessel in AV.vessels:   
         AV.determine_situations(vessel)
 
-
-    colors = ['#ff7f0e','#1f77b4', '#2ca02c','#c73838','#c738c0',"#33A8FF",'#33FFBD']  # Orange, blå, grønn, rød, rosa, lyse blå, turkis
     font_size = 20
     ax, origin_x, origin_y = plotting.start_plot()
     for k,vessel in enumerate(AV.vessels):
-        plotting.plot_single_vessel(vessel, ax, origin_x, origin_y, colors[k])
-        plotting.plot_colreg_situation(vessel, AV.situation_matrix[vessel.id], ax, origin_x, origin_y, colors[k])
+        plotting.plot_single_vessel(vessel, ax, origin_x, origin_y)
+        plotting.plot_colreg_situation(vessel, AV.situation_matrix[vessel.id], ax, origin_x, origin_y)
     
     plt.show()
 
