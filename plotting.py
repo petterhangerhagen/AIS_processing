@@ -98,12 +98,7 @@ def plot_single_vessel_old(vessel,ax,origin_x,origin_y, color):
 def plot_single_vessel(vessel,ax,origin_x,origin_y, color):
     x, y, psi, _, _ = vessel.state
 
-    # print("X = ")
-    # print(x)
-    # print("\n")
-    # print("Time stamps = ")
-    # print(vessel.time_stamps)
-    # ax.plot(x + origin_x, y + origin_y, color=color, linewidth=2, label=f"Vessel {vessel.id}")
+    # Plot the grayscale line
     timestamps = vessel.time_stamps
     # Normalize timestamps between 0 and 1
     norm = Normalize(vmin=min(timestamps), vmax=max(timestamps))
@@ -112,12 +107,10 @@ def plot_single_vessel(vessel,ax,origin_x,origin_y, color):
     grayscale_values = (1 - grayscale_values) * 0.9
 
     # Plot the grayscale line
-    # ax.plot(x, y, color=plt.cm.gray(norm(timestamps)), linewidth=2)
-
     for i in range(len(x) - 1):
         ax.plot(x[i:i+2] + origin_x, y[i:i+2] + origin_y, color=(grayscale_values[i], grayscale_values[i], grayscale_values[i]), linewidth=2)
 
-    # print(f"Vessel {vessel.id}")
+    # Plot the first point of track and annotate it
     index = vessel.nan_idx[0]
     ax.scatter(x[index] + origin_x, y[index] + origin_y, color='black',zorder=2)
     ax.annotate(f"Vessel {vessel.id}", (x[index] + origin_x + 1, y[index] + origin_y + 1), fontsize=10, color='black')
@@ -131,8 +124,6 @@ def plot_single_vessel(vessel,ax,origin_x,origin_y, color):
     l6 = ax.scatter([], [], marker='o', c=situation_dict[2][2], s=100, label=situation_dict[2][0] + " - " + situation_dict[2][1])
     l7 = ax.scatter([], [], marker='o', c=situation_dict[3][2], s=100, label=situation_dict[3][0] + " - " + situation_dict[3][1])
 
-    # sc3 = ax1.plot([], [], linestyle="--", color="black", label="Sector")
-    # sc3, = ax1.plot([], [], linestyle="--", color="black", label="Anlge sectors",alpha=0.5) 
     legend_elements.append(l1)
     legend_elements.append(l2)
     legend_elements.append(l3)
@@ -144,41 +135,25 @@ def plot_single_vessel(vessel,ax,origin_x,origin_y, color):
     font_size = 17
     ax.legend(handles=legend_elements, fontsize=font_size, loc='lower right')
 
-    # Add labels and title
-    # plt.xlabel('Timestamp')
-    # plt.ylabel('X Values')
-    # plt.title('Grayscale Line Plot of X Values')
-
-    # # Show plot
-    # plt.grid(True)
-    # plt.show()
-
 
 def plot_colreg_situation(vessel, situation_matrix, ax, origin_x, origin_y, color):
     x, y, psi, _, _ = vessel.state
 
     situation_matrix = situation_matrix.copy()
-    print(f"Vessel {vessel.id} is in a situation")
-    # print(situation_matrix.shape)
-    # print(len(situation_matrix))
     for i in range(len(situation_matrix)):
+        # Skip the vessel itself
         if i == vessel.id:
             continue
+        # Skip if there is no situation
         if np.all(situation_matrix[i] == 0):
             print(f"No situation with vessel {i}")
             continue
-        
-        print(f"Vessel {vessel.id} is in a situation with vessel {i}")
-        # print(situation_matrix[i])
+
+        # Get the indices of the situation and plot them
         indices = np.nonzero(situation_matrix[i])[0]
         for idx in indices:
             color = situation_dict[situation_matrix[i][idx]][2]
             ax.scatter(x[idx] + origin_x, y[idx] + origin_y, color=color, zorder=2)
-            # ax.plot([x[idx] + origin_x, x[vessel.id] + origin_x], [y[idx] + origin_y, y[vessel.id] + origin_y], color=color, linewidth=2)
-
-    print("\n")
-    
-    # x, y, psi, _, _ = vessel.state
     
 
 
