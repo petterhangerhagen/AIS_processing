@@ -1,7 +1,34 @@
 import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import LinearSegmentedColormap, Normalize
 import numpy as np
 import sys
+
+ # # # OP = -3  # Obstacle passed
+# # # OTGW = -2  # Overtaking situation - own ship is give way vessel
+# # # CRGW = -1  # Crossing situation - own ship is give way vessel
+# # # NAR = 0  # No applicable rules
+# # # CRSO = 1  # Crossing situation - own ship is stand on vessel
+# # # OTSO = 2  # Overtaking situation - own ship is stand on vessel
+# # # HO = 3  # Head on situation
+
+colors = ['#ff7f0e','#1f77b4', '#2ca02c','#c73838','#c738c0',"#33A8FF",'#33FFBD']  # Orange, blå, grønn, rød, rosa, lyse blå, turkis
+
+# blue_colors = ['#419ede','#1f77b4', '#144c73']
+blue_colors = ['#2b93db','#1f77b4', '#1b699e']
+
+# green_colors = ['#4bce4b','#2ca02c', '#1c641c']
+green_colors = ['#32b432','#2ca02c', '#278c27']
+
+
+situation_dict = {
+    -3: ["OP", "Obstacle passed", colors[0]],
+    -2: ["OTGW", "Overtaking give way", green_colors[0]],
+    -1: ["CRGW", "Crossing give way", blue_colors[0]],
+    0: ["NAR", "No applicable rules", colors[4]],
+    1: ["CRSO", "Crossing stand on", blue_colors[2]],
+    2: ["OTSO", "Overtaking stand on", green_colors[2]],
+    3: ["HO", "Head on", colors[3]]
+}
 
 def start_plot():
     fig, ax = plt.subplots(figsize=(11, 7.166666))
@@ -46,9 +73,7 @@ def start_plot():
 
     return ax, origin_x, origin_y
 
-
-def plot_single_vessel(vessel):
-    ax, origin_x, origin_y = start_plot()
+def plot_single_vessel_old(vessel,ax,origin_x,origin_y, color):
     
     x, y, psi, _, _ = vessel.state
     ax.plot(x + origin_x, y + origin_y, markersize=10)
@@ -57,16 +82,104 @@ def plot_single_vessel(vessel):
     for idx in manuver_idx:
         ax.scatter(x[idx] + origin_x, y[idx] + origin_y, color="red")
     
-    manuver_start_stop = vessel.maneuver_start_stop
-    # for start, stop in manuver_start_stop:
-    #     ax.plot(x[start:stop] + origin_x, y[start:stop] + origin_y, color="red")
+    # manuver_start_stop = vessel.maneuver_start_stop
+    # # for start, stop in manuver_start_stop:
+    # #     ax.plot(x[start:stop] + origin_x, y[start:stop] + origin_y, color="red")
 
-    delta_course = vessel.delta_course
+    # delta_course = vessel.delta_course
 
-    delta_speed = vessel.delta_speed
-    print(len(delta_speed))
-    print(len(delta_course))
+    # delta_speed = vessel.delta_speed
+    # print(len(delta_speed))
+    # print(len(delta_course))
 
-    plt.show()
+    # plt.show()
     # sys.exit()
+
+def plot_single_vessel(vessel,ax,origin_x,origin_y, color):
+    x, y, psi, _, _ = vessel.state
+
+    # print("X = ")
+    # print(x)
+    # print("\n")
+    # print("Time stamps = ")
+    # print(vessel.time_stamps)
+    # ax.plot(x + origin_x, y + origin_y, color=color, linewidth=2, label=f"Vessel {vessel.id}")
+    timestamps = vessel.time_stamps
+    # Normalize timestamps between 0 and 1
+    norm = Normalize(vmin=min(timestamps), vmax=max(timestamps))
+    # Convert RGBA values to grayscale
+    grayscale_values = norm(timestamps)
+    grayscale_values = (1 - grayscale_values) * 0.9
+
+    # Plot the grayscale line
+    # ax.plot(x, y, color=plt.cm.gray(norm(timestamps)), linewidth=2)
+
+    for i in range(len(x) - 1):
+        ax.plot(x[i:i+2] + origin_x, y[i:i+2] + origin_y, color=(grayscale_values[i], grayscale_values[i], grayscale_values[i]), linewidth=2)
+
+    # print(f"Vessel {vessel.id}")
+    index = vessel.nan_idx[0]
+    ax.scatter(x[index] + origin_x, y[index] + origin_y, color='black',zorder=2)
+    ax.annotate(f"Vessel {vessel.id}", (x[index] + origin_x + 1, y[index] + origin_y + 1), fontsize=10, color='black')
+    
+    legend_elements = []
+    l1 = ax.scatter([], [], marker='o', c=situation_dict[-3][2], s=100, label=situation_dict[-3][0] + " - " + situation_dict[-3][1])
+    l2 = ax.scatter([], [], marker='o', c=situation_dict[-2][2], s=100, label=situation_dict[-2][0] + " - " + situation_dict[-2][1])
+    l3 = ax.scatter([], [], marker='o', c=situation_dict[-1][2], s=100, label=situation_dict[-1][0] + " - " + situation_dict[-1][1])
+    # l4 = ax.scatter([], [], marker='o', c=situation_dict[0][2], s=100, label=situation_dict[0][0] + " - " + situation_dict[0][1])
+    l5 = ax.scatter([], [], marker='o', c=situation_dict[1][2], s=100, label=situation_dict[1][0] + " - " + situation_dict[1][1])
+    l6 = ax.scatter([], [], marker='o', c=situation_dict[2][2], s=100, label=situation_dict[2][0] + " - " + situation_dict[2][1])
+    l7 = ax.scatter([], [], marker='o', c=situation_dict[3][2], s=100, label=situation_dict[3][0] + " - " + situation_dict[3][1])
+
+    # sc3 = ax1.plot([], [], linestyle="--", color="black", label="Sector")
+    # sc3, = ax1.plot([], [], linestyle="--", color="black", label="Anlge sectors",alpha=0.5) 
+    legend_elements.append(l1)
+    legend_elements.append(l2)
+    legend_elements.append(l3)
+    # legend_elements.append(l4)
+    legend_elements.append(l5)
+    legend_elements.append(l6)
+    legend_elements.append(l7)
+        
+    font_size = 17
+    ax.legend(handles=legend_elements, fontsize=font_size, loc='lower right')
+
+    # Add labels and title
+    # plt.xlabel('Timestamp')
+    # plt.ylabel('X Values')
+    # plt.title('Grayscale Line Plot of X Values')
+
+    # # Show plot
+    # plt.grid(True)
+    # plt.show()
+
+
+def plot_colreg_situation(vessel, situation_matrix, ax, origin_x, origin_y, color):
+    x, y, psi, _, _ = vessel.state
+
+    situation_matrix = situation_matrix.copy()
+    print(f"Vessel {vessel.id} is in a situation")
+    # print(situation_matrix.shape)
+    # print(len(situation_matrix))
+    for i in range(len(situation_matrix)):
+        if i == vessel.id:
+            continue
+        if np.all(situation_matrix[i] == 0):
+            print(f"No situation with vessel {i}")
+            continue
+        
+        print(f"Vessel {vessel.id} is in a situation with vessel {i}")
+        # print(situation_matrix[i])
+        indices = np.nonzero(situation_matrix[i])[0]
+        for idx in indices:
+            color = situation_dict[situation_matrix[i][idx]][2]
+            ax.scatter(x[idx] + origin_x, y[idx] + origin_y, color=color, zorder=2)
+            # ax.plot([x[idx] + origin_x, x[vessel.id] + origin_x], [y[idx] + origin_y, y[vessel.id] + origin_y], color=color, linewidth=2)
+
+    print("\n")
+    
+    # x, y, psi, _, _ = vessel.state
+    
+
+
 

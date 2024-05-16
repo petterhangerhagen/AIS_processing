@@ -2,6 +2,8 @@ import numpy as np
 from AutoVerification import AutoVerification, Vessel
 from scipy.ndimage.filters import gaussian_filter
 import plotting
+import sys
+import matplotlib.pyplot as plt
 
 def read_out_radar_data():
     # The message need to be of this form [x y yaw u v]
@@ -62,6 +64,7 @@ def read_out_radar_data():
                 
         ### Create vessel object
         vessel = Vessel(vessel_id, len(total_timestamps))
+        vessel.time_stamps = total_timestamps
         vessel.id = vessel_id
         vessel.stateDateTime = total_timestamps
         for j in range(len(total_timestamps)):
@@ -223,8 +226,11 @@ if __name__ == "__main__":
     r_colregs_2_max=50
     r_colregs_3_max=30
     r_colregs_4_max=4
+    # r_colregs_2_max=20
+    # r_colregs_3_max=10
+    # r_colregs_4_max=4
 
-    AV = AutoVerification(vessels=vessels, r_colregs_2_max=50, r_colregs_3_max=30, r_colregs_4_max=4)
+    AV = AutoVerification(vessels=vessels, r_colregs_2_max=r_colregs_2_max, r_colregs_3_max=r_colregs_3_max, r_colregs_4_max=r_colregs_4_max)
     AV.find_ranges()
 
     for vessel in AV.vessels:
@@ -261,11 +267,38 @@ if __name__ == "__main__":
                     sits.append(k)
             if sit_happened:
                 AV.filter_out_non_complete_situations(vessel, obst)
-        
+
+
+    # # # OP = -3  # Obstacle passed
+    # # # OTGW = -2  # Overtaking situation - own ship is give way vessel
+    # # # CRGW = -1  # Crossing situation - own ship is give way vessel
+    # # # NAR = 0  # No applicable rules
+    # # # CRSO = 1  # Crossing situation - own ship is stand on vessel
+    # # # OTSO = 2  # Overtaking situation - own ship is stand on vessel
+    # # # HO = 3  # Head on situation
+
+    for vessel in AV.vessels:   
         AV.determine_situations(vessel)
+    #     # print(f"Vessel id = {vessel.id}")
+    #     # print("Situations:")
+    #     situation_matrix = AV.situation_matrix[vessel.id]
+    #     # find out it there are only zero in the matrix
+    #     if np.all(situation_matrix == 0):
+    #         print("All zeros")
+    #     else:
+    #         print(situation_matrix)
 
 
-
+    colors = ['#ff7f0e','#1f77b4', '#2ca02c','#c73838','#c738c0',"#33A8FF",'#33FFBD']  # Orange, blå, grønn, rød, rosa, lyse blå, turkis
+    font_size = 20
+    ax, origin_x, origin_y = plotting.start_plot()
+    for k,vessel in enumerate(AV.vessels):
+        plotting.plot_single_vessel(vessel, ax, origin_x, origin_y, colors[k])
+        # plt.pause(2)
+        # temp_in = input("Press enter to continue")
+        plotting.plot_colreg_situation(vessel, AV.situation_matrix[vessel.id], ax, origin_x, origin_y, colors[k])
+        # ax.legend(fontsize=font_size, loc='lower right')
+    plt.show()
 
 
 
