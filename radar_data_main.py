@@ -4,8 +4,9 @@ from scipy.ndimage.filters import gaussian_filter
 import plotting
 import sys
 import matplotlib.pyplot as plt
+import os
 
-def read_out_radar_data(data_file="npy_files/colreg_tracks.npy"):
+def read_out_radar_data(data_file):
     # The message need to be of this form [x y yaw u v]
     vessels = []
     data = np.load(data_file, allow_pickle=True).item()
@@ -13,8 +14,8 @@ def read_out_radar_data(data_file="npy_files/colreg_tracks.npy"):
     timestamps_dict = {}
 
     for vessel_id, track in data.items():
-        if vessel_id == 1:
-            continue
+        # if vessel_id == 1:
+        #     continue
         timestamps, x_positions, y_positions, yaws, x_velocities, y_velocities = zip(*track)
         timestamps_dict[vessel_id] = timestamps
 
@@ -24,8 +25,8 @@ def read_out_radar_data(data_file="npy_files/colreg_tracks.npy"):
     total_timestamps = sorted(list(total_timestamps))
 
     for vessel_id, track in data.items():
-        if vessel_id == 1:
-            continue
+        # if vessel_id == 1:
+        #     continue
         timestamps, x_positions, y_positions, yaws, x_velocities, y_velocities = zip(*track)
         timestamps = list(timestamps)
 
@@ -177,44 +178,138 @@ def read_out_radar_data(data_file="npy_files/colreg_tracks.npy"):
             vessel.id = id_idx
     return vessels
 
+def all_elements_zero(matrix):
+    for row in matrix:
+        for element in row:
+            if element != 0:
+                return False
+    return True
+
+def write_scenario_to_file(data_file):
+    data_file = data_file.split("/")[-1]
+
+    txt_file = "scenarios_with_colreg_situations.txt"
+    with open(txt_file, 'r') as f:
+        # need to check if the name is already written
+        lines = f.readlines()
+        already_written = False
+        for line in lines:
+            if data_file == line[:-1]:
+                already_written = True
+                break
+    with open(txt_file, 'a') as f:
+        if not already_written:
+            f.write(data_file + "\n")
+
+def list_npy_files():
+    colreg_files_dir = "/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/colreg_files"
+    directory = colreg_files_dir
+    npy_files = [file for file in os.listdir(directory) if file.endswith('.npy')]
+    new_files = []
+    for file in npy_files:
+        new_files.append(os.path.join(directory, file))
+    return new_files
+
+def find_only_colreg_files(npy_files):
+    path_list = []
+    colreg_situation_files = []
+    with open("scenarios_with_colreg_situations.txt", "r") as f:
+        lines = f.readlines()
+        for line in lines:
+            colreg_situation_files.append(line[:-1])
+    temp_npy_files = []
+    for file in npy_files:
+        temp_npy_files.append(file.split("/")[-1])
+    
+    for file in temp_npy_files:
+        for colreg_file in colreg_situation_files:
+            if file == colreg_file:
+                path_list.append(file)
+    
+    new_path_list = []
+    colreg_files_dir = "/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/colreg_files"
+    for file in path_list:
+        new_path_list.append(os.path.join(colreg_files_dir, file))
+
+    return new_path_list
+        
+def scenario_selector(import_selection):
+    npy_files = list_npy_files()
+    if import_selection == 0:
+        return npy_files
+    
+    elif import_selection == 1:
+        path_list = find_only_colreg_files(npy_files)
+        return path_list
+
+    else:
+        print("Invalid selection")
+        sys.exit(1)
+
 if __name__ == "__main__":
-    data_file = "npy_files/colreg_tracks.npy"
+    import_selection = 0
+    path_list = scenario_selector(import_selection)
+    # print(path_list)
+    # temp_in = input("Press enter to continue")
+    # data_file = "npy_files/colreg_tracks_rosbag_2023-09-08-18-10-43.npy"
+    # data_file = "npy_files/colreg_tracks_rosbag_2023-09-08-19-07-56.npy"
+    # # data_file = "npy_files/colreg_tracks_rosbag_2023-09-09-10-37-00.npy"
+    # data_file = "npy_files/colreg_tracks.npy"
+    # # data_file = "npy_files/colreg_tracks_rosbag_2023-09-14-17-47-08.npy"
+    # # data_file = "npy_files/colreg_tracks_rosbag_2023-09-14-17-42-43.npy"
+    # data_file = "npy_files/colreg_tracks_rosbag_2023-09-14-17-12-25.npy"
+    # # data_file = "npy_files/colreg_tracks_rosbag_2023-09-14-17-09-47.npy"
+    # # data_file = "npy_files/colreg_tracks_rosbag_2023-09-14-15-47-59.npy"
+    # # data_file = "npy_files/colreg_tracks_rosbag_2023-09-14-14-39-23.npy"
     r_colregs_2_max=50
     r_colregs_3_max=30
     r_colregs_4_max=4
 
-    vessels = read_out_radar_data(data_file=data_file)
-    AV = AutoVerification(vessels=vessels, r_colregs_2_max=r_colregs_2_max, r_colregs_3_max=r_colregs_3_max, r_colregs_4_max=r_colregs_4_max)
-    AV.find_ranges()
+    for data_file in path_list:
+        print(f"For file: {os.path.basename(data_file)}")
 
-    for vessel in AV.vessels:
-        AV.find_maneuver_detect_index(vessel)  # Find maneuvers made by ownship
-        for obst in AV.vessels:
-            if vessel.id == obst.id:
-                continue
-            sits = []
-            sit_happened = False
-            for k in range(AV.n_msgs):
-                if AV.entry_criteria(vessel, obst, k) != AV.NAR:  # Find applicable COLREG rules between all ships
-                    sit_happened = True
-                if k == 0:
+        vessels = read_out_radar_data(data_file=data_file)
+        AV = AutoVerification(vessels=vessels, r_colregs_2_max=r_colregs_2_max, r_colregs_3_max=r_colregs_3_max, r_colregs_4_max=r_colregs_4_max)
+        AV.find_ranges()
+
+
+        for vessel in AV.vessels:
+            AV.find_maneuver_detect_index(vessel)  # Find maneuvers made by ownship
+            for obst in AV.vessels:
+                if vessel.id == obst.id:
                     continue
-                if AV.situation_matrix[vessel.id, obst.id, k] != AV.situation_matrix[vessel.id, obst.id, k - 1]:
-                    sits.append(k)
-            if sit_happened:
-                AV.filter_out_non_complete_situations(vessel, obst)
+                sits = []
+                sit_happened = False
+                for k in range(AV.n_msgs):
+                    if AV.entry_criteria(vessel, obst, k) != AV.NAR:  # Find applicable COLREG rules between all ships
+                        sit_happened = True
+                    if k == 0:
+                        continue
+                    if AV.situation_matrix[vessel.id, obst.id, k] != AV.situation_matrix[vessel.id, obst.id, k - 1]:
+                        sits.append(k)
+                if sit_happened:
+                    AV.filter_out_non_complete_situations(vessel, obst)
 
 
-    for vessel in AV.vessels:   
-        AV.determine_situations(vessel)
+        for vessel in AV.vessels:   
+            AV.determine_situations(vessel)
 
-    font_size = 20
-    ax, origin_x, origin_y = plotting.start_plot()
-    for k,vessel in enumerate(AV.vessels):
-        plotting.plot_single_vessel(vessel, ax, origin_x, origin_y)
-        plotting.plot_colreg_situation(vessel, AV.situation_matrix[vessel.id], ax, origin_x, origin_y)
-    
-    plt.show()
+        for vessel in AV.vessels:
+            # print("Vessel id: ", vessel.id)
+            # print(AV.situation_matrix[vessel.id])
+            # print(np.all(AV.situation_matrix[vessel.id]))
+            if all_elements_zero(AV.situation_matrix[vessel.id]):
+                print("No situations found")
+            else:
+                write_scenario_to_file(data_file)
+
+        font_size = 20
+        ax, origin_x, origin_y = plotting.start_plot()
+        for k,vessel in enumerate(AV.vessels):
+            plotting.plot_single_vessel(vessel, ax, origin_x, origin_y)
+            plotting.plot_colreg_situation(vessel, AV.situation_matrix[vessel.id], ax, origin_x, origin_y)
+        
+        plt.show()
 
 
 
