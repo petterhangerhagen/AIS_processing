@@ -147,7 +147,7 @@ class AutoVerification:
                 # The elements in the situation matrix are initialized to zero, i.e. no applicable rule.
                 continue
             for i in range(self.n_msgs):
-                if self.ranges[vessel.id, obst.id, i] > self.r_colregs[0]:
+                if self.ranges[vessel.id, obst.id, i] > self.r_colregs[0]:  #r_colregs_2_max
                     # If outside COLREGS range
                     if abs(self.situation_matrix[vessel.id, obst.id, i - 1]) == self.OTSO:
                         # Overtaking situation passed when vessels are out of range
@@ -155,7 +155,7 @@ class AutoVerification:
                     else:
                         # No applicable rules
                         self.situation_matrix[vessel.id, obst.id, i] = self.NAR
-                elif self.ranges[vessel.id, obst.id, i] <= self.r_colregs[0]:
+                elif self.ranges[vessel.id, obst.id, i] <= self.r_colregs[0]: #r_colregs_2_max
                     # If inside COLREGS stage 2, 3 or 4
                     obst_passed, os_passed = self.determine_applicable_rules(vessel, obst, i)
                     if abs(self.situation_matrix[vessel.id, obst.id, i - 1]) == self.CRSO \

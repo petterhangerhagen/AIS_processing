@@ -5,6 +5,7 @@ import plotting
 import sys
 import matplotlib.pyplot as plt
 import os
+from video import Video
 
 def read_out_radar_data(data_file):
     # The message need to be of this form [x y yaw u v]
@@ -172,8 +173,8 @@ def read_out_radar_data(data_file):
                         np.dot([a[i], a[i + 1], a[i + 2], a[i + 3], a[i + 4]], [-1 / 12, 4 / 3, -5 / 2, 4 / 3, -1 / 12])
                         for i in range(len(a) - 4)]
                     
-
-        vessels.append(vessel)
+        if vessel.travel_dist > 20:
+            vessels.append(vessel)
         for id_idx, vessel in enumerate(vessels):
             vessel.id = id_idx
     return vessels
@@ -246,11 +247,18 @@ def scenario_selector(import_selection):
         print("Invalid selection")
         sys.exit(1)
 
+
+## TODO: Filter away to short tracks
+
 if __name__ == "__main__":
-    import_selection = 0
+    plot_statment = 0
+    video_statment = 1
+
+    import_selection = 1
     path_list = scenario_selector(import_selection)
     # print(path_list)
     # temp_in = input("Press enter to continue")
+    path_list = ["/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/npy_files/colreg_tracks_rosbag_2023-09-09-12-33-28.npy"]
     # data_file = "npy_files/colreg_tracks_rosbag_2023-09-08-18-10-43.npy"
     # data_file = "npy_files/colreg_tracks_rosbag_2023-09-08-19-07-56.npy"
     # # data_file = "npy_files/colreg_tracks_rosbag_2023-09-09-10-37-00.npy"
@@ -261,12 +269,13 @@ if __name__ == "__main__":
     # # data_file = "npy_files/colreg_tracks_rosbag_2023-09-14-17-09-47.npy"
     # # data_file = "npy_files/colreg_tracks_rosbag_2023-09-14-15-47-59.npy"
     # # data_file = "npy_files/colreg_tracks_rosbag_2023-09-14-14-39-23.npy"
-    r_colregs_2_max=50
-    r_colregs_3_max=30
-    r_colregs_4_max=4
+    r_colregs_2_max=50    #50
+    r_colregs_3_max=0     #30
+    r_colregs_4_max=0     #4
 
-    for data_file in path_list:
-        print(f"For file: {os.path.basename(data_file)}")
+    for k,data_file in enumerate(path_list):
+        print(f"Scenario {k+1} of {len(path_list)}")
+        print(f"For file: {os.path.basename(data_file).split('.')[0].split('_')[-1]}")
 
         vessels = read_out_radar_data(data_file=data_file)
         AV = AutoVerification(vessels=vessels, r_colregs_2_max=r_colregs_2_max, r_colregs_3_max=r_colregs_3_max, r_colregs_4_max=r_colregs_4_max)
@@ -303,13 +312,18 @@ if __name__ == "__main__":
             else:
                 write_scenario_to_file(data_file)
 
-        font_size = 20
-        ax, origin_x, origin_y = plotting.start_plot()
-        for k,vessel in enumerate(AV.vessels):
-            plotting.plot_single_vessel(vessel, ax, origin_x, origin_y)
-            plotting.plot_colreg_situation(vessel, AV.situation_matrix[vessel.id], ax, origin_x, origin_y)
-        
-        plt.show()
+        if plot_statment:
+            font_size = 20
+            ax, origin_x, origin_y = plotting.start_plot()
+            for k,vessel in enumerate(AV.vessels):
+                plotting.plot_single_vessel(vessel, ax, origin_x, origin_y)
+                plotting.plot_colreg_situation(vessel, AV.situation_matrix[vessel.id], ax, origin_x, origin_y)
+                # plt.savefig(f"plotting_results/plot_{os.path.basename(data_file).split('.')[0].split('_')[-1]}.png", dpi=300)
+            plt.show()
+
+        if video_statment:
+            video_object = Video(wokring_directory=os.getcwd(),filename=os.path.basename(data_file).split('.')[0].split('_')[-1])
+            video_object.create_video(AV_object=AV)
 
 
 
