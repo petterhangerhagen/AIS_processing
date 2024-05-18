@@ -248,28 +248,18 @@ def scenario_selector(import_selection):
         sys.exit(1)
 
 
-## TODO: Filter away to short tracks
-
 if __name__ == "__main__":
-    plot_statment = 0
-    video_statment = 1
+    plot_statment = 1
+    video_statment = 0
 
     import_selection = 1
     path_list = scenario_selector(import_selection)
     # print(path_list)
     # temp_in = input("Press enter to continue")
+
     path_list = ["/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/npy_files/colreg_tracks_rosbag_2023-09-09-12-33-28.npy"]
-    # data_file = "npy_files/colreg_tracks_rosbag_2023-09-08-18-10-43.npy"
-    # data_file = "npy_files/colreg_tracks_rosbag_2023-09-08-19-07-56.npy"
-    # # data_file = "npy_files/colreg_tracks_rosbag_2023-09-09-10-37-00.npy"
-    # data_file = "npy_files/colreg_tracks.npy"
-    # # data_file = "npy_files/colreg_tracks_rosbag_2023-09-14-17-47-08.npy"
-    # # data_file = "npy_files/colreg_tracks_rosbag_2023-09-14-17-42-43.npy"
-    # data_file = "npy_files/colreg_tracks_rosbag_2023-09-14-17-12-25.npy"
-    # # data_file = "npy_files/colreg_tracks_rosbag_2023-09-14-17-09-47.npy"
-    # # data_file = "npy_files/colreg_tracks_rosbag_2023-09-14-15-47-59.npy"
-    # # data_file = "npy_files/colreg_tracks_rosbag_2023-09-14-14-39-23.npy"
-    r_colregs_2_max=50    #50
+    
+    r_colregs_2_max=30    #50
     r_colregs_3_max=0     #30
     r_colregs_4_max=0     #4
 
@@ -318,8 +308,10 @@ if __name__ == "__main__":
             for k,vessel in enumerate(AV.vessels):
                 plotting.plot_single_vessel(vessel, ax, origin_x, origin_y)
                 plotting.plot_colreg_situation(vessel, AV.situation_matrix[vessel.id], ax, origin_x, origin_y)
-                # plt.savefig(f"plotting_results/plot_{os.path.basename(data_file).split('.')[0].split('_')[-1]}.png", dpi=300)
-            plt.show()
+            save_name = f"plotting_results/plots/plot_{os.path.basename(data_file).split('.')[0].split('_')[-1]}.png"
+            plt.savefig(save_name, dpi=300)
+            print(f"Saved plot to {save_name}")
+            # plt.show()
 
         if video_statment:
             video_object = Video(wokring_directory=os.getcwd(),filename=os.path.basename(data_file).split('.')[0].split('_')[-1])
