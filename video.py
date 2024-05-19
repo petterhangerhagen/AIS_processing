@@ -39,11 +39,12 @@ class Video(object):
     def __init__(self, wokring_directory, filename="coord_69",resolution=100,fps=1):
         self.wokring_directory = wokring_directory
         self.filename = filename.split("/")[-1].split("_")[-1].split(".")[0]
-        self.resolution = 200
+        self.resolution = 100
         self.fps = fps
         self.start_plot()
         self.plot_count = 2
         self.font_size = 17
+        self.read_out_file()
 
     def start_plot(self):
         fig, ax = plt.subplots(figsize=(11, 7.166666))
@@ -134,7 +135,6 @@ class Video(object):
         while self.plot_count < len(timestamps):
             # print(f"Plotting frame {self.plot_count} of {len(timestamps)}")
             for k,vessel in enumerate(vessels):
-                
                 x, y, _, _, _ = vessel.state
                 x = np.array(x) + self.origin_x
                 y = np.array(y) + self.origin_y
@@ -162,6 +162,7 @@ class Video(object):
 
             # Saving the frame
             self.ax.set_title(f"Time: {timestamps[self.plot_count]:.2f} s", fontsize=10)
+            # self.write_to_video()
 
             temp_save_path = f'{self.wokring_directory}/plotting_results/videos/temp/tracker_{self.plot_count}.png'
             self.fig.savefig(temp_save_path,dpi=self.resolution)
@@ -176,4 +177,44 @@ class Video(object):
         print(f"\nSaving the video to {video_name}")
         empty_folder(photos_file_path)
        
+    def write_to_video(self):
+        # beta, beta_180, alpha, alpha_360 = AV_object.angles
+        for txt in self.ax.texts:
+            txt.remove() 
+        text = ""
+        for row in self.angle_data:
+            
+            # self.ax.text(0.0, -0.13, "", transform=self.ax.transAxes, fontsize=10, verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.15))
+            if self.plot_count-2 == row[2]:
+                vessel_id = row[0]
+                object_id = row[1]
+                # print(f"Vessel {vessel_id}, object {object_id}")
+                beta, beta_180, alpha, alpha_360 = row[3:7]
+                text += f"Vessel {vessel_id}, object {object_id}: "
+                # text += f"$\beta$: {beta:.2f}, beta_180: {beta_180:.2f}, alpha: {alpha:.2f}, alpha_360: {alpha_360:.2f}\n"
+                text += fr"$\beta$: {beta:.2f}, $\beta_{{180}}$: {beta_180:.2f}, $\alpha$: {alpha:.2f}, $\alpha_{{360}}$: {alpha_360:.2f}"
+                text += "\n"
+
+        if text != "":
+            # print(text)
+            self.ax.text(0.0, -0.2, text, transform=self.ax.transAxes, fontsize=10, verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.15))
+            # plt.pause(1)
+        else:
+            self.ax.text(0.0, -0.2, "\n \n", transform=self.ax.transAxes, fontsize=10, verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.15))
+        plt.tight_layout()
+
+    def read_out_file(self):
+        # Initialize an empty list to store the data
+        data_matrix = []
+
+        # Open the file
+        with open('angles.txt', 'r') as file:
+            # Read each line in the file
+            for line in file:
+                # Split the line by commas to get individual fields
+                fields = line.strip().split(',')
+                # Convert fields to floats and append them to the data_matrix
+                data_matrix.append([float(field.strip()) for field in fields])
+
+        self.angle_data = data_matrix
 

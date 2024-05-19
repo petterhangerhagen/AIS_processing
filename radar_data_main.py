@@ -71,7 +71,7 @@ def read_out_radar_data(data_file):
         for j in range(len(total_timestamps)):
             vessel.state[0, j] = x_positions_new[j]
             vessel.state[1, j] = y_positions_new[j]
-            vessel.state[2, j] = yaws_new[j]
+            vessel.state[2, j] = np.deg2rad(yaws_new[j])
             vessel.state[3, j] = x_velocities_new[j]
             vessel.state[4, j] = y_velocities_new[j]
 
@@ -179,10 +179,10 @@ def read_out_radar_data(data_file):
             vessel.id = id_idx
     return vessels
 
-def all_elements_zero(matrix):
+def all_elements_zero_or_OP(matrix):
     for row in matrix:
         for element in row:
-            if element != 0:
+            if element != 0 and element != -3:  # Modified condition
                 return False
     return True
 
@@ -249,28 +249,34 @@ def scenario_selector(import_selection):
 
 
 if __name__ == "__main__":
-    plot_statment = 1
+    plot_statment = 0
     video_statment = 0
 
+    # 0 all npy files saved in the colreg_files directory in the radar tracker
+    # 1 only the files listed in scenarios_with_colreg_situations.txt 
     import_selection = 1
     path_list = scenario_selector(import_selection)
     # print(path_list)
     # temp_in = input("Press enter to continue")
 
-    path_list = ["/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/npy_files/colreg_tracks_rosbag_2023-09-09-12-33-28.npy"]
+    # path_list = ["/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/npy_files/colreg_tracks_rosbag_2023-09-09-12-33-28.npy"]
+    # path_list = ["/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/npy_files/colreg_tracks_rosbag_2023-09-09-16-39-32.npy"]
+    # path_list = ["/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/colreg_files/colreg_tracks_rosbag_2023-09-14-11-12-39.npy"]
+    # path_list = ["/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/colreg_files/colreg_tracks_rosbag_2023-09-09-14-06-49.npy"]
     
-    r_colregs_2_max=30    #50
+    r_colregs_2_max=40    #50
     r_colregs_3_max=0     #30
     r_colregs_4_max=0     #4
 
     for k,data_file in enumerate(path_list):
+        plot_statment = 0
+        video_statment = 0
         print(f"Scenario {k+1} of {len(path_list)}")
         print(f"For file: {os.path.basename(data_file).split('.')[0].split('_')[-1]}")
 
         vessels = read_out_radar_data(data_file=data_file)
         AV = AutoVerification(vessels=vessels, r_colregs_2_max=r_colregs_2_max, r_colregs_3_max=r_colregs_3_max, r_colregs_4_max=r_colregs_4_max)
         AV.find_ranges()
-
 
         for vessel in AV.vessels:
             AV.find_maneuver_detect_index(vessel)  # Find maneuvers made by ownship
@@ -297,10 +303,12 @@ if __name__ == "__main__":
             # print("Vessel id: ", vessel.id)
             # print(AV.situation_matrix[vessel.id])
             # print(np.all(AV.situation_matrix[vessel.id]))
-            if all_elements_zero(AV.situation_matrix[vessel.id]):
+            if all_elements_zero_or_OP(AV.situation_matrix[vessel.id]):
                 print("No situations found")
             else:
                 write_scenario_to_file(data_file)
+                plot_statment = 1
+                # video_statment = 1
 
         if plot_statment:
             font_size = 20
@@ -312,7 +320,7 @@ if __name__ == "__main__":
             plt.savefig(save_name, dpi=300)
             print(f"Saved plot to {save_name}")
             # plt.show()
-
+      
         if video_statment:
             video_object = Video(wokring_directory=os.getcwd(),filename=os.path.basename(data_file).split('.')[0].split('_')[-1])
             video_object.create_video(AV_object=AV)

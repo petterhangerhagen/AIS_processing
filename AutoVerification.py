@@ -38,7 +38,7 @@ class AutoVerification:
                  alpha_critical_15=0.0,
                  phi_OT_min=112.5,
                  phi_OT_max=247.5,
-                 phi_SB_lim=-20.0):
+                 phi_SB_lim=-10.0):
 
         """
         :param ais_path: relative path to .csv file containing encounter data
@@ -51,22 +51,27 @@ class AutoVerification:
         :type r_colregs_3_max: int
         :param r_colregs_4_max: [m] Maximum range for COLREGS stage 4. Usually four ship lengths.
         :type r_colregs_4_max: int
+
         :param epsilon_course: Detectable course change. [deg/s]
         :type epsilon_course: float
         :param epsilon_speed: Detectable speed change. [m/s^2]
         :type epsilon_speed: float
+
         :param delta_chi_md: Minimum detectable course change [deg]
         :type delta_chi_md: float
         :param delta_psi_md: Minimum detectable heading change [deg]
         :type delta_psi_md: float
         :param delta_speed_md: Minimum detectable speed change [m/s^2]
         :type delta_speed_md: float
+        
         :param alpha_critical_13: Angle defining an overtaking situation, when a vessel is approaching another from
         abaft the beam cf. rule 13.
         :type alpha_critical_13: float
+
         :param alpha_critical_14: Angle defining a head-on situation, when two vessels are approaching on reciprocal or
         nearly reciprocal courses cf. rule 14.
         :type alpha_critical_14: float
+
         :param alpha_critical_15: Angle defining a crossing situation cf. rule 15.
         :type alpha_critical_15: float
         """
@@ -110,7 +115,7 @@ class AutoVerification:
         self.epsilon_speed = epsilon_speed
         self.phi_OT_min = np.deg2rad(phi_OT_min)  # Minimum relative bearing defining an overtaking encounter
         self.phi_OT_max = np.deg2rad(phi_OT_max)  # Maximum relative bearing defining an overtaking encounter
-        self.phi_SB_lim = np.deg2rad(phi_SB_lim)  # Defines a starboard turn in rule 14
+        # self.phi_SB_lim = np.deg2rad(phi_SB_lim)  # Defines a starboard turn in rule 14
 
         # alpha variables are relative bearing of own ship as seen from obstacle
         self.alpha_crit_13 = np.deg2rad(alpha_critical_13)
@@ -135,6 +140,10 @@ class AutoVerification:
         self.beta = np.zeros([self.n_vessels, self.n_vessels, self.n_msgs])
         self.beta_180 = np.zeros([self.n_vessels, self.n_vessels, self.n_msgs])
 
+        # self.angles = np.zeros([self.n_vessels, self.n_msgs, 4])
+        with open("angles.txt", "w") as f:
+            f.write("")
+
     # Functions for determining applicable rules -----------------------------------------------------------------------
     def determine_situations(self, vessel):
         """Determine applicable rules the given vessel with regards to all other vessels.
@@ -147,6 +156,7 @@ class AutoVerification:
                 # The elements in the situation matrix are initialized to zero, i.e. no applicable rule.
                 continue
             for i in range(self.n_msgs):
+                # Overtaking situation
                 if self.ranges[vessel.id, obst.id, i] > self.r_colregs[0]:  #r_colregs_2_max
                     # If outside COLREGS range
                     if abs(self.situation_matrix[vessel.id, obst.id, i - 1]) == self.OTSO:
@@ -155,6 +165,8 @@ class AutoVerification:
                     else:
                         # No applicable rules
                         self.situation_matrix[vessel.id, obst.id, i] = self.NAR
+
+                # Crossing situation or head-on
                 elif self.ranges[vessel.id, obst.id, i] <= self.r_colregs[0]: #r_colregs_2_max
                     # If inside COLREGS stage 2, 3 or 4
                     obst_passed, os_passed = self.determine_applicable_rules(vessel, obst, i)
@@ -166,9 +178,11 @@ class AutoVerification:
                         else:
                             self.situation_matrix[vessel.id, obst.id, i] = \
                                 self.situation_matrix[vessel.id, obst.id, i - 1]  # Keep situation
+                            
                     elif self.situation_matrix[vessel.id, obst.id, i - 1] == self.OTSO:
                         self.situation_matrix[vessel.id, obst.id, i] = \
                             self.situation_matrix[vessel.id, obst.id, i - 1]  # Keep situation
+                        
                     elif self.situation_matrix[vessel.id, obst.id, i - 1] == self.OTGW:
                         self.situation_matrix[vessel.id, obst.id, i] = \
                             self.situation_matrix[vessel.id, obst.id, i - 1]  # Keep situation
@@ -187,14 +201,18 @@ class AutoVerification:
         dist_to_obst = np.empty(2)
         dist_to_obst[0] = obst.state[0, i] - vessel.state[0, i]
         dist_to_obst[1] = obst.state[1, i] - vessel.state[1, i]
-
+       
         # Relative bearing of obstacle as seen from own ship
         beta = normalize_2pi(normalize_2pi(np.arctan2(dist_to_obst[1], dist_to_obst[0])) - vessel.state[2, i])
         beta_180 = normalize_pi(beta)
         # Relative bearing of own ship as seen from the obstacle
         alpha = normalize_pi(normalize_2pi(np.arctan2(-dist_to_obst[1], -dist_to_obst[0])) - obst.state[2, i])
         alpha_360 = normalize_2pi(alpha)
-
+        
+        with open("angles.txt", "a") as f:
+            f.write(f"{vessel.id}, {obst.id}, {i}, {np.rad2deg(beta)}, {np.rad2deg(beta_180)}, {np.rad2deg(alpha)}, {np.rad2deg(alpha_360)}\n")
+        
+        # Check for overtaking
         if (beta > self.phi_OT_min) and (beta < self.phi_OT_max) and (abs(alpha) < self.alpha_crit_13) \
                 and (vessel.speed[i] < obst.speed[i]):
             # Own-ship is being overtaken by obstacle j and is the stand on vessel.
@@ -203,15 +221,21 @@ class AutoVerification:
                 and (abs(beta_180) < self.alpha_crit_13) and (vessel.speed[i] > obst.speed[i]):
             # Own-ship is overtaking obstacle j and is the give way vessel.
             self.situation_matrix[vessel.id, obst.id, i] = self.OTGW
+
+        # Check for head-on
         elif (abs(beta_180) < self.alpha_crit_14) and (abs(alpha) < self.alpha_crit_14):
             # Head on situation
             self.situation_matrix[vessel.id, obst.id, i] = self.HO
+
+        # Check for crossing
         elif (alpha_360 < self.phi_OT_min) and (beta_180 > -self.phi_OT_min) and (beta_180 < self.alpha_crit_15):
             # Crossing situation, own-ship is give-way vessel
             self.situation_matrix[vessel.id, obst.id, i] = self.CRGW
         elif (beta < self.phi_OT_min) and (alpha > -self.phi_OT_min) and (alpha < self.alpha_crit_15):
             # Crossing situation, own-ship is stand-on vessel
             self.situation_matrix[vessel.id, obst.id, i] = self.CRSO
+        
+        # No applicable rules at current time
         else:
             # No applicable rules at current time
             self.situation_matrix[vessel.id, obst.id, i] = self.NAR
@@ -591,7 +615,7 @@ class AutoVerification:
         if vessel.maneuvers_searched:
             return
 
-        if vessel.travel_dist < 1:    #1000:
+        if vessel.travel_dist < 1000:    #1000:
             vessel.maneuver_detect_idx = np.array([])
             # print(vessel.delta_course)
             vessel.delta_course = np.array([]) #vessel.delta_course([])
@@ -1008,368 +1032,6 @@ class AutoVerification:
                             start_idx,
                             stop_idx)
         return params
-
-    def read_AIS(self, ais_path, ship_path):
-        '''
-        :param AIS_path, ship_path: Paths to AIS-data/ship_info-data
-        '''
-        ais_df = pd.read_csv(ais_path, sep=';', dtype={'mmsi': 'uint32', 'sog': 'float16', \
-                                                       'cog': 'float16'}, \
-                             parse_dates=['date_time_utc'], infer_datetime_format=True, na_values='')
-        if len(ship_path) != 0:
-            ship_df = pd.read_csv(ship_path, sep=';', \
-                                  parse_dates=['date_min', 'date_max'], infer_datetime_format=True)
-            # ship_df = pd.read_csv(ship_path, sep = ';', dtype = {'mmsi': 'uint32', \
-            #            'length': 'int16', 'width': 'int16', 'type': 'float16'}, \
-            #            parse_dates = ['date_min', 'date_max'], infer_datetime_format = True)
-        else:
-            ship_df = []
-
-        origin_buffer = 0.01
-        boats = getListOfMmsiDf(ais_df)
-        lon0 = min(ais_df.lon) - origin_buffer
-        lat0 = min(ais_df.lat) - origin_buffer
-
-        ## strip coastline of unnecessary points
-
-        lon_max = max(ais_df.lon.tolist())
-        lat_max = max(ais_df.lat.tolist())
-        del ais_df
-
-        # if self.using_coastline:
-        #    self.coastline = self.coastline.loc[(self.coastline['lon'] > lon0) &\
-        #                                    (self.coastline['lat'] > lat0) &\
-        #                                    (self.coastline['lon'] < lon_max) &\
-        #                                    (self.coastline['lat'] < lat_max)].reset_index(drop = True)
-
-        for boat in boats:
-            ship_idx = None
-            if len(ship_df) != 0:
-                if boat.at[0, 'mmsi'] in ship_df.mmsi.tolist():
-                    name_df = ship_df.loc[ship_df.mmsi == boat.at[0, 'mmsi']]
-                    if len(name_df) == 1:
-                        name = name_df.name.tolist()[0]
-                        ship_idx = name_df.index.tolist()[0]
-                    else:
-                        name = boat.at[0, 'mmsi']
-                        for date in name_df.index:
-                            if name_df.at[date, 'date_min'] <= boat.at[0, 'date_time_utc'] <= name_df.at[
-                                date, 'date_max']:
-                                name = str(name_df.at[date, 'name'])
-                                ship_idx = date
-                                break
-                else:
-                    name = boat.at[0, 'mmsi']
-            else:
-                name = boat.at[0, 'mmsi']
-            vessel = Vessel(name, len(boat))
-            vessel.stateDateTime = boat.date_time_utc.to_list()
-            vessel.mmsi = boat.at[0, 'mmsi']
-            if isinstance(vessel.name, str):
-                vessel.length = ship_df.at[ship_idx, 'length']
-                vessel.width = ship_df.at[ship_idx, 'width']
-                vessel.type = ship_df.at[ship_idx, 'type']
-                vessel.imo = ship_df.at[ship_idx, 'imo']
-                vessel.callsign = ship_df.at[ship_idx, 'callsign']
-            else:
-                vessel.name = str(vessel.name)
-
-            for j in boat.index:
-                vessel.state[0, j] = getDisToMeter(lon0, lat0, boat.lon[j], lat0)
-                vessel.state[1, j] = getDisToMeter(lon0, lat0, lon0, boat.lat[j])
-                vessel.state[2, j] = np.deg2rad(-normalize_180_deg(boat.cog[j] - 90))
-                vessel.debug_state[2, j] = boat.cog[j]
-                vessel.state[3, j] = knots_to_mps(boat.sog[j]) * np.cos(vessel.state[2, j])
-                vessel.state[4, j] = knots_to_mps(boat.sog[j]) * np.sin(vessel.state[2, j])
-
-                if np.isnan(vessel.nan_idx[0]) or (j == 0):
-                    vessel.nan_idx[0] = j
-                if not np.isnan(vessel.state[2, j]):
-                    vessel.nan_idx[1] = j
-
-            vessel.stateLonLat[0, :] = boat.lon.tolist()
-            vessel.stateLonLat[1, :] = boat.lat.tolist()
-
-            k_t_mps = lambda x: knots_to_mps(x)
-            vessel.speed[:] = list(map(k_t_mps, boat.sog[:]))
-
-            vessel.true_heading[:] = boat.true_heading.tolist()
-            # vessel.message_nr[:] = boat.message_nr.tolist()
-            # vessel.nav_status[:] = boat.nav_status.tolist()
-            vessel.msgs_idx[:] = boat.index[:]
-
-            vessel.dT = (boat.at[1, 'date_time_utc'] - boat.at[0, 'date_time_utc']).total_seconds() * 10 ** -9
-            vessel.travel_dist = np.linalg.norm(
-                [vessel.state[0, vessel.nan_idx[1]] - vessel.state[0, vessel.nan_idx[0]], \
-                 vessel.state[1, vessel.nan_idx[1]] - vessel.state[1, vessel.nan_idx[0]]])
-            if vessel.travel_dist > 1000:
-
-                # Calculate derivative of speed
-                speed = np.array(vessel.speed)
-
-                from scipy.ndimage.filters import gaussian_filter
-                target_area = np.isnan(speed) == False
-                speed[target_area] = gaussian_filter(speed[target_area], sigma=1)
-
-                target_area = [np.logical_and(np.logical_and(target_area[i] == True, target_area[i + 2] == True),
-                                              target_area[i + 1] == True) for i in range(len(target_area) - 2)]
-                target_area = np.append(False, target_area)
-                target_area = np.append(target_area, False)
-                if speed.size >= 3:
-                    vessel.speed_der[:] = [0 for i in range(len(vessel.speed))]
-                    speed = speed[np.isnan(speed) == False]
-                    try:
-                        vessel.speed_der[target_area] = [np.dot([speed[i], speed[i + 1], speed[i + 2]], [-0.5, 0, 0.5])
-                                                         for i in range(len(speed) - 2)]
-                    except:
-                        pass
-
-                        # Calculate derivatives of yaw
-                a = np.array(vessel.state[2, :])
-                d = np.append([0], a[1:] - a[:-1], 0)
-
-                d[np.isnan(d)] = 0
-                d[abs(d) < np.pi] = 0
-                d[d < -np.pi] = -2 * np.pi
-                d[d > np.pi] = 2 * np.pi  # d is now 2pi or -2pi at jumps from pi to -pi or opposite
-
-                s = np.cumsum(d, axis=0)  # sum of all previuos changes
-
-                target_area = np.isnan(a) == False
-
-                a[target_area] = a[target_area] - s[
-                    target_area]  # this is to not have sudden changes from pi to -pi or opposite count as maneuvers
-                from scipy.ndimage.filters import gaussian_filter
-                a[target_area] = gaussian_filter(a[target_area], sigma=2)
-
-                target_area = [np.logical_and(target_area[i] == True, True == target_area[i + 2]) for i in
-                               range(len(target_area) - 2)]
-                target_area = np.append(False, target_area)
-                target_area = np.append(target_area, False)
-                if a.size >= 3:
-                    a = a[np.isnan(a) == False]
-                    vessel.maneuver_der[0, :] = [0 for i in range(len(vessel.state[2, :]))]
-                    vessel.maneuver_der[0, target_area] = [np.dot([a[i], a[i + 1], a[i + 2]], [-0.5, 0, 0.5]) for i in
-                                                           range(len(a) - 2)]
-                    vessel.maneuver_der[1, :] = [0 for i in range(len(vessel.state[2, :]))]
-                    vessel.maneuver_der[1, target_area] = [np.dot([a[i], a[i + 1], a[i + 2]], [1, -2, 1]) for i in
-                                                           range(len(a) - 2)]
-
-                    target_area = [np.logical_and(target_area[i] == True, True == target_area[i + 2]) for i in
-                                   range(len(target_area) - 2)]
-                    target_area = np.append(False, target_area)
-                    target_area = np.append(target_area, False)
-                    vessel.maneuver_der[2, :] = [0 for i in range(len(vessel.state[2, :]))]
-                    vessel.maneuver_der[2, target_area] = [
-                        np.dot([a[i], a[i + 1], a[i + 2], a[i + 3], a[i + 4]], [-0.5, 1, 0, -1, 0.5]) for i in
-                        range(len(a) - 4)]
-                    vessel.maneuver_der[1, :] = [0 for i in range(len(vessel.state[2, :]))]
-                    vessel.maneuver_der[1, target_area] = [
-                        np.dot([a[i], a[i + 1], a[i + 2], a[i + 3], a[i + 4]], [-1 / 12, 4 / 3, -5 / 2, 4 / 3, -1 / 12])
-                        for i in range(len(a) - 4)]
-
-                self.vessels.append(vessel)
-        for id_idx, vessel in enumerate(self.vessels):
-            vessel.id = id_idx
-
-        del ship_df
-
-    # Plotting functions -----------------------------------------------------------------------------------------------
-
-    def plot_trajectories(self, show_trajectory_at=None, specific_obst_names=None, save=False, save_folder='img'):
-        """Plots trajectories of all ships and the applicable rules wrt to own ship"""
-        fig, ax1 = plt.subplots(nrows=1, ncols=1)
-
-        anon = False
-        debug = False
-
-        # TRAJECTORY PLOT
-
-        ax1.set_title('Trajectories')
-        ax1.set_xlabel('East')
-        ax1.set_ylabel('North')
-        x_min = 9.0 * 10 ** 9 if not self.using_coastline else 90
-        x_max = -9.0 * 10 ** 9 if not self.using_coastline else 0
-        y_min = x_min if not self.using_coastline else 90
-        y_max = x_max if not self.using_coastline else 0
-
-        colors = cm.rainbow(np.linspace(0, 1, self.n_vessels))
-        for vessel in self.vessels:
-            if vessel.id != self.OWN_SHIP:
-                if specific_obst_names is not None:
-                    its_in = False
-                    for name in specific_obst_names:
-                        if str(name) in vessel.name:
-                            its_in = True
-
-                    if not its_in:
-                        continue
-
-            label = vessel.name
-
-            x_min_temp = min(vessel.stateLonLat[0])
-            x_max_temp = max(vessel.stateLonLat[0])
-            x_min = min(x_min, x_min_temp)
-            x_max = max(x_max, x_max_temp)
-            y_min_temp = min(vessel.stateLonLat[1])
-            y_max_temp = max(vessel.stateLonLat[1])
-            y_min = min(y_min, y_min_temp)
-            y_max = max(y_max, y_max_temp)
-
-        margin = 0.05
-
-        m = Basemap(projection='merc',
-                    llcrnrlat=y_min - margin, urcrnrlat=y_max + margin,
-                    llcrnrlon=x_min - margin, urcrnrlon=x_max + margin,
-                    resolution='h', ax=ax1)
-
-        for vessel in self.vessels:  # Plot trajectories for all vessels
-            if vessel.id != self.OWN_SHIP:
-                if specific_obst_names is not None:
-                    its_in = False
-                    for name in specific_obst_names:
-                        if name in vessel.name:
-                            its_in = True
-                    if not its_in:
-                        continue
-            if vessel.id == self.OWN_SHIP:
-                color = 'k'
-                label = vessel.name if not anon else "Ownship"
-                own_label = vessel.name if not anon else "Ownship"
-                if show_trajectory_at is not None:
-                    calcTra = calc_trajectory(vessel, show_trajectory_at)
-                    x, y = m(calcTra[0, :], calcTra[1, :])
-                    ax1.plot(x, y, '+', color=color)
-            else:
-                color = "tomato"
-                label = vessel.name if not anon else "Obsacle ship"
-                obst_label = vessel.name if not anon else "Obsacle ship"
-
-            x, y = m(vessel.stateLonLat[0], vessel.stateLonLat[1])
-            ax1.plot(x, y, '-+',
-                     label=label,
-                     color=color)
-
-            x, y = m(vessel.stateLonLat[0, 0], vessel.stateLonLat[1, 0])
-            ax1.scatter(x, y, marker='x', color=color)
-
-            x, y = m(vessel.stateLonLat[0, list(vessel.maneuver_detect_idx)],
-                     vessel.stateLonLat[1, list(vessel.maneuver_detect_idx)])
-
-            if vessel.id == self.OWN_SHIP:
-                p1 = ax1.scatter(x, y,
-                                 marker='o', label='maneuver', color=color)
-            else:
-                p2 = ax1.scatter(x, y,
-                                 marker='o', color=color)
-
-            if vessel.id != self.OWN_SHIP:  # Mark CPA and plot situations
-                c = plt.cm.Dark2(vessel.id * 15)
-                cpa_idx = self.cpa_idx[self.vessels[self.OWN_SHIP].id, vessel.id]
-
-                x_cpa, y_cpa = m(self.vessels[self.OWN_SHIP].stateLonLat[0, cpa_idx],
-                                 self.vessels[self.OWN_SHIP].stateLonLat[1, cpa_idx])
-                p3 = ax1.scatter(x_cpa, y_cpa, marker='D', color=c)
-
-                ax1.scatter(x_cpa, y_cpa, marker='D', color='k')
-
-                x_man, y_man = m(vessel.stateLonLat[0, list(vessel.maneuver_detect_idx)],
-                                 vessel.stateLonLat[1, list(vessel.maneuver_detect_idx)])
-                ax1.scatter(x_man, y_man, marker='o', color=color)
-
-                x_cpa, y_cpa = m(vessel.stateLonLat[0, cpa_idx], vessel.stateLonLat[1, cpa_idx])
-                p4 = ax1.scatter(x_cpa, y_cpa, marker='D', color=color)
-
-        import matplotlib.lines as mlines
-        from matplotlib.legend_handler import HandlerLineCollection, HandlerTuple
-
-        if 'own_label' not in locals():
-            own_label = 'Ownship'
-        if 'obst_label' not in locals():
-            obst_label = 'Obstacle ship'
-
-        own_line = mlines.Line2D([], [], color='k', marker='+',
-                                 markersize=6, label=own_label)
-        obs_line = mlines.Line2D([], [], color='tomato', marker='+',
-                                 markersize=6, label=obst_label)
-
-        try:
-            ax1.legend([own_line, obs_line, (p1, p2), (p3, p4)], [own_label, obst_label, 'Maneuver', 'CPA'],
-                       scatterpoints=1,
-                       numpoints=1, handler_map={tuple: HandlerTuple(ndivide=None)})
-        except:
-            if debug:
-                print("ERROR:")
-                print(specific_obst_names)
-                print()
-                for name in specific_obst_names:
-                    for vessel in self.vessels:
-                        print(vessel.name, str(name) in vessel.name)
-
-                print("\t ", [v.name for v in self.vessels])
-                print("\t ", [v.mmsi for v in self.vessels])
-
-        m.fillcontinents(color="#FFDDCC", lake_color='#DDEEFF')
-        m.drawmapboundary(fill_color="#DDEEFF")
-        m.drawcoastlines()
-
-        if save:
-            save_name = "./" + save_folder + "/" + self.vessels[self.OWN_SHIP].name + "-" + specific_obst_names[
-                0] + "-" + self.case_name + ".png"
-            plt.savefig(save_name, bbox_inches="tight", pad_inches=0.1)
-            return save_name
-        else:
-            plt.show()
-
-        return ""
-
-    def plot_case(self, own_name=None, obst_name=None):
-        """Plots trajectories of all ships and the applicable rules wrt to own ship"""
-        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(14, 7))
-
-        # TRAJECTORY PLOT
-        # ax.set_title('Trajectories')
-        ax.set_xlabel('East')
-        ax.set_ylabel('North')
-
-        colors = cm.rainbow(np.linspace(0, 1, self.n_vessels))
-        x_min, y_min = 100, 100
-        x_max, y_max = 0, 0
-
-        for vessel, color in zip(self.vessels, colors):
-            if own_name != None and obst_name != None:
-                if vessel.name != own_name and vessel.name != obst_name:
-                    continue
-
-            x_min = min(x_min, min(vessel.stateLonLat[0]))
-            x_max = max(x_max, max(vessel.stateLonLat[0]))
-            y_min = min(y_min, min(vessel.stateLonLat[1]))
-            y_max = max(y_max, max(vessel.stateLonLat[1]))
-
-        from mpl_toolkits.basemap import Basemap
-        m = Basemap(projection='merc',
-                    llcrnrlat=y_min - 0.2, urcrnrlat=y_max,
-                    llcrnrlon=x_min - 0.5, urcrnrlon=x_max + 0.5,
-                    resolution='h', ax=ax)
-
-        for vessel, color in zip(self.vessels, colors):
-            if own_name != None and obst_name != None:
-                if vessel.name != own_name and vessel.name != obst_name:
-                    continue
-            m.fillcontinents(color="#FFDDCC", lake_color='#DDEEFF')
-            m.drawmapboundary(fill_color="#DDEEFF")
-            m.drawcoastlines()
-
-            x, y = m(vessel.stateLonLat[0], vessel.stateLonLat[1])
-            ax.plot(x, y, '-+', label=vessel.mmsi, color=color)
-
-            x_start, y_start = m(vessel.stateLonLat[0, 0], vessel.stateLonLat[1, 0])
-            ax.scatter(x_start, y_start, marker='x', color=color)
-
-        ax.set_title("Case - " + self.case_name, fontsize=10)
-        # ax.legend()
-        # plt.savefig("./caseim2/" + self.case_name + ".png")
-        plt.show()
 
 
 class Vessel:
