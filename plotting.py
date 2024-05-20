@@ -115,6 +115,7 @@ def plot_colreg_situation(vessel, situation_matrix, ax, origin_x, origin_y):
 
     situation_matrix = situation_matrix.copy()
     for i in range(len(situation_matrix)):
+        already_passed = False
         # Skip the vessel itself
         if i == vessel.id:
             continue
@@ -127,7 +128,14 @@ def plot_colreg_situation(vessel, situation_matrix, ax, origin_x, origin_y):
         indices = np.nonzero(situation_matrix[i])[0]
         for idx in indices:
             color = situation_dict[situation_matrix[i][idx]][2]
-            ax.scatter(x[idx] + origin_x, y[idx] + origin_y, color=color, zorder=2)
+            if situation_matrix[i][idx] == -3:
+                if already_passed:
+                    continue
+                else:
+                    ax.scatter(x[idx] + origin_x, y[idx] + origin_y, color=color,zorder=2)
+                    already_passed = True
+            else:
+                ax.scatter(x[idx] + origin_x, y[idx] + origin_y, color=color, zorder=2)
     
 
 

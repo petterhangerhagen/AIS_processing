@@ -211,6 +211,15 @@ def list_npy_files():
         new_files.append(os.path.join(directory, file))
     return new_files
 
+def list_local_npy_files():
+    colreg_files_dir = "/home/aflaptop/Documents/Scripts/AIS_processing/npy_files"
+    directory = colreg_files_dir
+    npy_files = [file for file in os.listdir(directory) if file.startswith('colreg_tracks_rosbag') and file.endswith('.npy')]
+    new_files = []
+    for file in npy_files:
+        new_files.append(os.path.join(directory, file))
+    return new_files
+
 def find_only_colreg_files(npy_files):
     path_list = []
     colreg_situation_files = []
@@ -233,7 +242,33 @@ def find_only_colreg_files(npy_files):
         new_path_list.append(os.path.join(colreg_files_dir, file))
 
     return new_path_list
-        
+
+def colreg_files_from_chosen_scenarios_txt(npy_files):
+    path_list = []
+    colreg_situation_files = []
+    with open("chosen_scenarios.txt", "r") as f:
+        lines = f.readlines()
+        for line in lines:
+            date = line.split(" ")[0]
+            date = line.strip()     # Remove the newline character
+            scenario = f"colreg_tracks_rosbag_{date}.npy"
+            colreg_situation_files.append(scenario)
+
+    temp_npy_files = []
+    for file in npy_files:
+        temp_npy_files.append(file.split("/")[-1])
+    
+    for file in temp_npy_files:
+        for colreg_file in colreg_situation_files:
+            if file == colreg_file:
+                path_list.append(file)
+
+    new_path_list = []
+    colreg_files_dir = "/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/colreg_files"
+    for file in path_list:
+        new_path_list.append(os.path.join(colreg_files_dir, file))
+    return new_path_list
+
 def scenario_selector(import_selection):
     npy_files = list_npy_files()
     if import_selection == 0:
@@ -242,7 +277,14 @@ def scenario_selector(import_selection):
     elif import_selection == 1:
         path_list = find_only_colreg_files(npy_files)
         return path_list
+    
+    elif import_selection == 2:
+        path_list = colreg_files_from_chosen_scenarios_txt(npy_files)
+        return path_list
 
+    elif import_selection == 3:
+        path_list = list_local_npy_files()
+        return path_list
     else:
         print("Invalid selection")
         sys.exit(1)
@@ -254,16 +296,14 @@ if __name__ == "__main__":
 
     # 0 all npy files saved in the colreg_files directory in the radar tracker
     # 1 only the files listed in scenarios_with_colreg_situations.txt 
-    import_selection = 1
+    # 2 only the files listed in chosen_scenarios.txt
+    import_selection = 3
     path_list = scenario_selector(import_selection)
     # print(path_list)
     # temp_in = input("Press enter to continue")
 
     # path_list = ["/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/npy_files/colreg_tracks_rosbag_2023-09-09-12-33-28.npy"]
-    # path_list = ["/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/npy_files/colreg_tracks_rosbag_2023-09-09-16-39-32.npy"]
-    # path_list = ["/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/colreg_files/colreg_tracks_rosbag_2023-09-14-11-12-39.npy"]
-    # path_list = ["/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/colreg_files/colreg_tracks_rosbag_2023-09-09-14-06-49.npy"]
-    
+    path_list = ["/home/aflaptop/Documents/Scripts/AIS_processing/npy_files/colreg_tracks_rosbag_2023-09-02-13-17-29_new.npy"]
     r_colregs_2_max=40    #50
     r_colregs_3_max=0     #30
     r_colregs_4_max=0     #4
