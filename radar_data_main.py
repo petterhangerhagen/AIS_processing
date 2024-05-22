@@ -303,8 +303,12 @@ if __name__ == "__main__":
     # temp_in = input("Press enter to continue")
 
     # path_list = ["/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/npy_files/colreg_tracks_rosbag_2023-09-09-12-33-28.npy"]
-    path_list = ["/home/aflaptop/Documents/Scripts/AIS_processing/npy_files/colreg_tracks_rosbag_2023-09-02-13-17-29_new.npy"]
-    r_colregs_2_max=40    #50
+    # path_list = ["/home/aflaptop/Documents/Scripts/AIS_processing/npy_files/colreg_tracks_rosbag_2023-09-02-13-17-29.npy"]
+    # path_list = ["/home/aflaptop/Documents/Scripts/AIS_processing/npy_files/colreg_tracks_rosbag_2023-09-09-14-16-35.npy"]
+    # path_list = ["npy_files/colreg_tracks_rosbag_2023-09-09-14-38-21.npy"]
+    # path_list = ["/home/aflaptop/Documents/Scripts/AIS_processing/npy_files/colreg_tracks_rosbag_2023-09-09-14-38-21_new.npy"]
+
+    r_colregs_2_max=50    #50
     r_colregs_3_max=0     #30
     r_colregs_4_max=0     #4
 

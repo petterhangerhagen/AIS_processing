@@ -83,12 +83,12 @@ def plot_single_vessel(vessel,ax,origin_x,origin_y):
 
     # Plot the grayscale line
     for i in range(len(x) - 1):
-        ax.plot(x[i:i+2] + origin_x, y[i:i+2] + origin_y, color=(grayscale_values[i], grayscale_values[i], grayscale_values[i]), linewidth=2)
+        ax.plot(x[i:i+2] + origin_x, y[i:i+2] + origin_y, color=(grayscale_values[i], grayscale_values[i], grayscale_values[i]), linewidth=2, zorder=3)
 
     # Plot the first point of track and annotate it
     index = vessel.nan_idx[0]
-    ax.scatter(x[index] + origin_x, y[index] + origin_y, color='black',zorder=2)
-    ax.annotate(f"Vessel {vessel.id}", (x[index] + origin_x + 1, y[index] + origin_y + 1), fontsize=10, color='black')
+    ax.scatter(x[index] + origin_x, y[index] + origin_y, color='black',zorder=10)
+    ax.annotate(f"Start vessel {vessel.id}", (x[index] + origin_x + 1, y[index] + origin_y + 1), fontsize=10, color='black')
     
     legend_elements = []
     l1 = ax.scatter([], [], marker='o', c=situation_dict[-3][2], s=100, label=situation_dict[-3][0] + " - " + situation_dict[-3][1])
@@ -132,11 +132,11 @@ def plot_colreg_situation(vessel, situation_matrix, ax, origin_x, origin_y):
                 if already_passed:
                     continue
                 else:
-                    ax.scatter(x[idx] + origin_x, y[idx] + origin_y, color=color,zorder=2)
+                    ax.scatter(x[idx] + origin_x, y[idx] + origin_y, color=color, alpha=1, zorder=2)
                     already_passed = True
             else:
-                ax.scatter(x[idx] + origin_x, y[idx] + origin_y, color=color, zorder=2)
-    
+                ax.scatter(x[idx] + origin_x, y[idx] + origin_y, color=color, alpha=1, zorder=2)
+                already_passed = False
 
 
 

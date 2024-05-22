@@ -8,9 +8,52 @@ from AV_class_functions.helper_methods import *
 
 from matplotlib import cm
 from dataclasses import dataclass
+from matplotlib.colors import LinearSegmentedColormap
+
 
 warnings.filterwarnings("ignore")
 
+def start_plot(ax):
+    font_size = 20
+
+    # Plotting the occupancy grid'
+    data = np.load(f"npy_files/occupancy_grid_without_dilating.npy",allow_pickle='TRUE').item()
+    occupancy_grid = data["occupancy_grid"]
+    origin_x = data["origin_x"]
+    origin_y = data["origin_y"]
+
+    colors = [(1, 1, 1), (0.8, 0.8, 0.8)]  # Black to light gray
+    cm = LinearSegmentedColormap.from_list('custom_gray', colors, N=256)
+    ax.imshow(occupancy_grid, cmap=cm, interpolation='none', origin='upper', extent=[0, occupancy_grid.shape[1], 0, occupancy_grid.shape[0]])
+    
+    ax.set_xlim(origin_x-120,origin_x + 120)
+    ax.set_ylim(origin_y-140, origin_y + 20)
+    ax.set_aspect('equal')
+    ax.set_xlabel('East [m]',fontsize=font_size)
+    ax.set_ylabel('North [m]',fontsize=font_size)
+    plt.tick_params(axis='both', which='major', labelsize=font_size)
+    plt.tight_layout()
+
+    # reformating the x and y axis
+    x_axis_list = np.arange(origin_x-120,origin_x+121,20)
+    x_axis_list_str = []
+    for x in x_axis_list:
+        x_axis_list_str.append(str(int(x-origin_x)))
+    ax.set_xticks(ticks=x_axis_list)
+    ax.set_xticklabels(x_axis_list_str)
+    # plt.xticks(x_axis_list, x_axis_list_str)
+
+    y_axis_list = np.arange(origin_y-140,origin_y+21,20)
+    y_axis_list_str = []
+    for y in y_axis_list:
+        y_axis_list_str.append(str(int(y-origin_y)))
+    ax.set_yticks(ticks=y_axis_list)
+    ax.set_yticklabels(y_axis_list_str)
+    # plt.yticks(y_axis_list, y_axis_list_str)
+
+    ax.grid(True)
+
+    return ax, origin_x, origin_y
 
 class AutoVerification:
     # "Constants"
@@ -144,6 +187,11 @@ class AutoVerification:
         with open("angles.txt", "w") as f:
             f.write("")
 
+        self.fig, self.ax = plt.subplots()
+        self.fig, self.ax = plt.subplots(figsize=(11, 7.166666))
+        self.ax, self.origin_x, self.origin_y = start_plot(self.ax)
+
+
     # Functions for determining applicable rules -----------------------------------------------------------------------
     def determine_situations(self, vessel):
         """Determine applicable rules the given vessel with regards to all other vessels.
@@ -203,22 +251,54 @@ class AutoVerification:
         dist_to_obst[1] = obst.state[1, i] - vessel.state[1, i]
        
         # Relative bearing of obstacle as seen from own ship
-        beta = normalize_2pi(normalize_2pi(np.arctan2(dist_to_obst[1], dist_to_obst[0])) - vessel.state[2, i])
+        # beta = normalize_2pi(normalize_2pi(np.arctan2(dist_to_obst[1], dist_to_obst[0])) - vessel.state[2, i])
+        beta = normalize_2pi(normalize_2pi(np.arctan2(dist_to_obst[0], dist_to_obst[1])) - vessel.state[2, i])
         beta_180 = normalize_pi(beta)
         # Relative bearing of own ship as seen from the obstacle
-        alpha = normalize_pi(normalize_2pi(np.arctan2(-dist_to_obst[1], -dist_to_obst[0])) - obst.state[2, i])
+        # alpha = normalize_pi(normalize_2pi(np.arctan2(-dist_to_obst[1], -dist_to_obst[0])) - obst.state[2, i])
+        alpha = normalize_pi(normalize_2pi(np.arctan2(-dist_to_obst[0], -dist_to_obst[1])) - obst.state[2, i])
+
         alpha_360 = normalize_2pi(alpha)
         
+        print_this = False
+        if print_this:
+            print(f"Current heading: {np.rad2deg(vessel.state[2, i]):.2f}")
+            print(f"Angle between own ship and obstacle: {np.rad2deg(np.arctan2(dist_to_obst[1], dist_to_obst[0])):.2f}")
+            print(f"Vessel: {vessel.id}, Obstacle: {obst.id}, Time: {vessel.time_stamps[i]:.2f}, Beta: {np.rad2deg(beta):.2f}, Beta_180: {np.rad2deg(beta_180):.2f}, Alpha: {np.rad2deg(alpha):.2f}, Alpha_360: {np.rad2deg(alpha_360):.2f}")
+            print(f"{dist_to_obst[0]:.2f}, {dist_to_obst[1]:.2f}")
+
+        plot = False
+        if plot:
+            self.ax.clear()
+            self.ax, self.origin_x, self.origin_y = start_plot(self.ax)
+            self.ax.plot(np.array([obst.state[0, i],vessel.state[0,i]]) + self.origin_x, np.array([vessel.state[1, i],vessel.state[1, i]]) + self.origin_y, label="X distance")
+            self.ax.plot(np.array([vessel.state[0, i], vessel.state[0,i]]) + self.origin_x, np.array([obst.state[1, i],vessel.state[1, i]]) + self.origin_y, label="Y distance")
+        
+            self.ax.quiver(vessel.state[0, i] + self.origin_x, vessel.state[1, i] + self.origin_y, 2*np.sin(vessel.state[2, i]), 2*np.cos(vessel.state[2, i]))
+            self.ax.quiver(obst.state[0, i] + self.origin_x, obst.state[1, i] + self.origin_y, 2*np.sin(obst.state[2, i]), 2*np.cos(obst.state[2, i]))
+            self.ax.scatter(vessel.state[0, 0:i+1] + self.origin_x , vessel.state[1, 0:i+1] + self.origin_y, label="Vessel")
+            self.ax.scatter(obst.state[0, 0:i+1] + self.origin_x, obst.state[1, 0:i+1] + self.origin_y, label="Obstacle")
+            # self.ax.plot(obst.state[0, :], obst.state[1, :], label="Obstacle")
+            self.ax.plot(np.array([vessel.state[0, i], obst.state[0, i]]) + self.origin_x, np.array([vessel.state[1, i], obst.state[1, i]]) + self.origin_y, label="Range")
+            self.ax.legend()
+            plt.pause(0.1)
+            temp_in = input("Press enter to continue")
+
+       
         with open("angles.txt", "a") as f:
             f.write(f"{vessel.id}, {obst.id}, {i}, {np.rad2deg(beta)}, {np.rad2deg(beta_180)}, {np.rad2deg(alpha)}, {np.rad2deg(alpha_360)}\n")
-        
+
         # Check for overtaking
-        if (beta > self.phi_OT_min) and (beta < self.phi_OT_max) and (abs(alpha) < self.alpha_crit_13) \
+        # if (beta > self.phi_OT_min) and (beta < self.phi_OT_max) and (abs(alpha) < self.alpha_crit_13) \
+        #         and (vessel.speed[i] < obst.speed[i]):
+        if (self.phi_OT_min < beta < self.phi_OT_max) and (abs(alpha) < self.alpha_crit_13) \
                 and (vessel.speed[i] < obst.speed[i]):
             # Own-ship is being overtaken by obstacle j and is the stand on vessel.
             self.situation_matrix[vessel.id, obst.id, i] = self.OTSO
-        elif (alpha_360 > self.phi_OT_min) and (alpha_360 < self.phi_OT_max) \
-                and (abs(beta_180) < self.alpha_crit_13) and (vessel.speed[i] > obst.speed[i]):
+        # elif (alpha_360 > self.phi_OT_min) and (alpha_360 < self.phi_OT_max) \
+        #         and (abs(beta_180) < self.alpha_crit_13) and (vessel.speed[i] > obst.speed[i]):
+        elif (self.phi_OT_min < alpha_360 < self.phi_OT_max) and (abs(beta_180) < self.alpha_crit_13)\
+                 and (vessel.speed[i] > obst.speed[i]):
             # Own-ship is overtaking obstacle j and is the give way vessel.
             self.situation_matrix[vessel.id, obst.id, i] = self.OTGW
 
@@ -228,10 +308,14 @@ class AutoVerification:
             self.situation_matrix[vessel.id, obst.id, i] = self.HO
 
         # Check for crossing
-        elif (alpha_360 < self.phi_OT_min) and (beta_180 > -self.phi_OT_min) and (beta_180 < self.alpha_crit_15):
+        # elif (alpha_360 < self.phi_OT_min) and (beta_180 > -self.phi_OT_min) and (beta_180 < self.alpha_crit_15):
+        # elif (alpha_360 < self.phi_OT_min) and (beta_180 > -self.phi_OT_min) and (beta_180 < self.alpha_crit_15):
+        elif (beta < self.phi_OT_min) and (-self.phi_OT_min < alpha < self.alpha_crit_15):
             # Crossing situation, own-ship is give-way vessel
             self.situation_matrix[vessel.id, obst.id, i] = self.CRGW
-        elif (beta < self.phi_OT_min) and (alpha > -self.phi_OT_min) and (alpha < self.alpha_crit_15):
+        
+        # elif (beta < self.phi_OT_min) and (alpha > -self.phi_OT_min) and (alpha < self.alpha_crit_15):
+        elif (alpha_360 < self.phi_OT_min) and (-self.phi_OT_min < beta_180 < self.alpha_crit_15):
             # Crossing situation, own-ship is stand-on vessel
             self.situation_matrix[vessel.id, obst.id, i] = self.CRSO
         
