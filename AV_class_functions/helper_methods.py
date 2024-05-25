@@ -9,7 +9,8 @@ def rotate(vec, ang):
     :param ang: angle in radians
     :return: input vector rotated by the input angle
     """
-    r_mat = np.array([[np.cos(ang), -np.sin(ang)], [np.sin(ang), np.cos(ang)]])
+    # r_mat = np.array([[np.cos(ang), -np.sin(ang)], [np.sin(ang), np.cos(ang)]])
+    r_mat = np.array([[np.sin(ang), np.cos(ang)], [np.cos(ang), -np.sin(ang)]])
     rot_vec = np.dot(r_mat, vec)
     return rot_vec
 

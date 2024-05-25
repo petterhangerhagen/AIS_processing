@@ -139,4 +139,59 @@ def plot_colreg_situation(vessel, situation_matrix, ax, origin_x, origin_y):
                 already_passed = False
 
 
+def plot_ship_domain(radius):
+    ax, origin_x, origin_y = start_plot()
+    center = (0 + origin_x, -50 + origin_y)
+    ax.scatter(center[0], center[1], color="black", marker='o', zorder=10)
+    ax.annotate(r"$\mathbf{r}_{{colreg}} = 100$", (center[0] -4, center[1] + 20), fontsize=17, color='black')
+    angle = 60
+    ax.quiver(center[0], center[1], radius*np.sin(np.deg2rad(angle)),radius*np.cos(np.deg2rad(angle)), color='black', scale=1, scale_units='xy', zorder=10)
+    circle = plt.Circle(center, radius, color='black', fill=False, linewidth=2)
+    ax.add_artist(circle)
 
+# 
+# def plot_histogram_situations(situation_dict_in):
+#     fig, ax = plt.subplots(figsize=(11, 7.166666))
+#     font_size = 20
+
+#     # Plotting the histogram
+#     for key,value in situation_dict_in.items():
+#         if key == -3:
+#             continue
+#         if key == 0:
+#             continue
+#         ax.bar(situation_dict[key][0], value, color=situation_dict[key][2], label=situation_dict[key][0] + " - " + situation_dict[key][1])
+#     ax.set_xlabel('Situation', fontsize=font_size)
+#     ax.set_ylabel('Number of Situations', fontsize=font_size)
+#     plt.tick_params(axis='both', which='major', labelsize=font_size)
+#     plt.tight_layout()
+#     plt.show()
+
+def plot_histogram_situations(situation_dict_in):
+    fig, ax = plt.subplots(figsize=(11, 7.166666))
+    font_size = 20
+    named_dict = {
+        1: ["CR","Crossing","#1f77b4"],
+        2: ["OT","Overtaking", "#2ca02c"],
+        3: ["HO","Head on", "#c73838"],
+    }
+
+    # Plotting the histogram
+    for key, value in situation_dict_in.items():
+        if key == -3 or key==-2 or key==-1 or key == 0 :
+            continue
+        bar = ax.bar(named_dict[key][0], value, width=0.6, color=named_dict[key][2], label=named_dict[key][0] + " - " + named_dict[key][1])
+        
+        # Adding the value on top of the bar
+        for rect in bar:
+            height = rect.get_height()
+            ax.text(
+                rect.get_x() + rect.get_width() / 2.0, height, str(value),
+                ha='center', va='bottom', fontsize=font_size
+            )
+    ax.legend(fontsize=font_size)
+    ax.set_xlabel('Situation', fontsize=font_size)
+    ax.set_ylabel('Number of Situations', fontsize=font_size)
+    ax.set_ylim(0, max(situation_dict_in.values())*1.1)
+    plt.tick_params(axis='both', which='major', labelsize=font_size)
+    plt.tight_layout()

@@ -186,10 +186,11 @@ class AutoVerification:
         # self.angles = np.zeros([self.n_vessels, self.n_msgs, 4])
         with open("angles.txt", "w") as f:
             f.write("")
-
-        self.fig, self.ax = plt.subplots()
-        self.fig, self.ax = plt.subplots(figsize=(11, 7.166666))
-        self.ax, self.origin_x, self.origin_y = start_plot(self.ax)
+        
+        self.plot = False
+        if self.plot:
+            self.fig, self.ax = plt.subplots(figsize=(11, 7.166666))
+            self.ax, self.origin_x, self.origin_y = start_plot(self.ax)
 
 
     # Functions for determining applicable rules -----------------------------------------------------------------------
@@ -212,6 +213,8 @@ class AutoVerification:
                         self.situation_matrix[vessel.id, obst.id, i] = self.OP
                     else:
                         # No applicable rules
+                        # print(f"Vessel: {vessel.id}, Obstacle: {obst.id}, Time: {vessel.time_stamps[i]:.2f}")
+                        # temp_in = input("Press enter to continue")
                         self.situation_matrix[vessel.id, obst.id, i] = self.NAR
 
                 # Crossing situation or head-on
@@ -291,6 +294,8 @@ class AutoVerification:
         # Check for overtaking
         # if (beta > self.phi_OT_min) and (beta < self.phi_OT_max) and (abs(alpha) < self.alpha_crit_13) \
         #         and (vessel.speed[i] < obst.speed[i]):
+        print(f"Vessel: {vessel.id}, Obstacle: {obst.id}, Time: {vessel.time_stamps[i]:.2f}, Vessel speed {vessel.speed[i]:.2f}, Obstacle speed {obst.speed[i]:.2f}")
+        print(f"If vessel speed < obstacle speed: {vessel.speed[i] < obst.speed[i]}")
         if (self.phi_OT_min < beta < self.phi_OT_max) and (abs(alpha) < self.alpha_crit_13) \
                 and (vessel.speed[i] < obst.speed[i]):
             # Own-ship is being overtaken by obstacle j and is the stand on vessel.
@@ -326,14 +331,47 @@ class AutoVerification:
 
         obst_passed = False
         os_passed = False
-        vo = rotate(obst.state[3:5, i], obst.state[2, i])
-        vs = rotate(vessel.state[3:5, i], vessel.state[2, i])
+        # vo = rotate(obst.state[3:5, i], obst.state[2, i])
+        # vs = rotate(vessel.state[3:5, i], vessel.state[2, i])
+        vo = obst.state[3:5, i]
+        vs = vessel.state[3:5, i]
         los = dist_to_obst / np.linalg.norm(dist_to_obst)
         if np.dot(vo, -los) < np.cos(self.phi_OT_min) * np.linalg.norm(vo):
-            os_passed = True
+            os_passed = True    # Own ship passed obstacle
 
         if np.dot(vs, los) < np.cos(self.phi_OT_min) * np.linalg.norm(vs):
-            obst_passed = True
+            obst_passed = True  # Obstacle passed own ship
+
+        plot2 = False
+        if plot2:
+            if os_passed and obst_passed:
+                print(vessel.state[:, i])
+                print(obst.state[:, i])
+                print(f"vo: {vo}, vs: {vs}, los: {los}, i: {i}")
+                print(np.dot(vo, -los), np.cos(self.phi_OT_min) * np.linalg.norm(vo))
+                print(np.dot(vs, los), np.cos(self.phi_OT_min) * np.linalg.norm(vs))
+                fig_idk, ax = plt.subplots(figsize=(11, 7.166666))
+                ax, origin_x, origin_y = start_plot(ax)
+                # origin_x = 0
+                # origin_y = 0
+                ax.scatter(vessel.state[0, i] + origin_x, vessel.state[1, i] + origin_y, label="Vessel")
+                # ax.quiver(vessel.state[0, i] + origin_x, vessel.state[1, i] + origin_y, 2*np.cos(vessel.state[2, i]), 2*np.sin(vessel.state[2, i]))
+                # ax.quiver(vessel.state[0, i] + origin_x, vessel.state[1, i] + origin_y, vo[0], vo[1], color='r')
+                
+                ax.scatter(obst.state[0, i] + origin_x, obst.state[1, i] + origin_y, label="Obstacle")
+                # ax.quiver(obst.state[0, i] + origin_x, obst.state[1, i] + origin_y, 2*np.cos(obst.state[2, i]), 2*np.sin(obst.state[2, i]))
+                # ax.quiver(obst.state[0, i] + origin_x, obst.state[1, i] + origin_y, vs[0], vs[1], color='g')
+
+                # ax.quiver(vessel.state[0, i] + origin_x, vessel.state[1, i] + origin_y, los[0], los[1], color='b')
+                # ax.quiver(obst.state[0, i] + origin_x, obst.state[1, i] + origin_y, -los[0], -los[1], color='b')
+
+                plt.show()
+                plt.close(fig_idk)
+                # print("Both passed")
+                # print(vessel.id, obst.id, vessel.time_stamps[i])
+                # temp_in = input("Press enter to continue")
+            # print(f"Own ship passed obstacle: {os_passed}, Obstacle passed own ship: {obst_passed}")
+
         return obst_passed, os_passed
 
     def entry_criteria(self, vessel, obst, i):

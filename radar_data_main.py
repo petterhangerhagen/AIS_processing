@@ -48,6 +48,7 @@ def read_out_radar_data(data_file):
         x_velocities_new = np.zeros(len(total_timestamps))
         y_velocities_new = np.zeros(len(total_timestamps))
 
+        # NOTE: The velocities are in NED frame
         for i in range(len(new_timestamps)):
             if np.isnan(new_timestamps[i]):
                 x_positions_new[i] = np.nan
@@ -203,7 +204,7 @@ def write_scenario_to_file(data_file):
             f.write(data_file + "\n")
 
 def list_npy_files():
-    colreg_files_dir = "/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/colreg_files"
+    colreg_files_dir = "/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/colreg_files/all_files_old"
     directory = colreg_files_dir
     npy_files = [file for file in os.listdir(directory) if file.endswith('.npy')]
     new_files = []
@@ -269,6 +270,35 @@ def colreg_files_from_chosen_scenarios_txt(npy_files):
         new_path_list.append(os.path.join(colreg_files_dir, file))
     return new_path_list
 
+situation_dict = {
+    -3: 0,      # Obstacle passed
+    0: 0,       # No applicable rules
+    -2: 0,      # Overtaking give way
+    2: 0,       # Overtaking stand on
+    3: 0,       # Head on
+    -1: 0,      # Crossing give way
+    1: 0        # Crossing stand on
+}
+
+# Function to count scenarios
+def count_scenarios(matrix, situation_dict):
+    number_of_sit = 0
+    for row in matrix:
+        current_state = 0  # Start with no applicable rules
+        for value in row:
+            if value != current_state and value != 0 and value != -3:
+                situation_dict[value] += 1
+                number_of_sit += 1
+                current_state = value
+    return number_of_sit
+
+# def count_number_of_situations(situation_matrix):
+#     for row in situation_matrix:
+#         for element in row:
+#             if element != 0 and element != -3:
+#                 count += 1
+#     return count
+
 def scenario_selector(import_selection):
     npy_files = list_npy_files()
     if import_selection == 0:
@@ -293,6 +323,7 @@ def scenario_selector(import_selection):
 if __name__ == "__main__":
     plot_statment = 0
     video_statment = 0
+    count_number_of_situations = 0
 
     # 0 all npy files saved in the colreg_files directory in the radar tracker
     # 1 only the files listed in scenarios_with_colreg_situations.txt 
@@ -302,22 +333,45 @@ if __name__ == "__main__":
     # print(path_list)
     # temp_in = input("Press enter to continue")
 
-    # path_list = ["/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/npy_files/colreg_tracks_rosbag_2023-09-09-12-33-28.npy"]
     # path_list = ["/home/aflaptop/Documents/Scripts/AIS_processing/npy_files/colreg_tracks_rosbag_2023-09-02-13-17-29.npy"]
     # path_list = ["/home/aflaptop/Documents/Scripts/AIS_processing/npy_files/colreg_tracks_rosbag_2023-09-09-14-16-35.npy"]
     # path_list = ["npy_files/colreg_tracks_rosbag_2023-09-09-14-38-21.npy"]
-    # path_list = ["/home/aflaptop/Documents/Scripts/AIS_processing/npy_files/colreg_tracks_rosbag_2023-09-09-14-38-21_new.npy"]
+    # path_list = ["npy_files/colreg_tracks_rosbag_2023-09-09-14-16-35.npy"]
+    # path_list = ["/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/colreg_files/all_files_old/colreg_tracks_rosbag_2023-08-27-11-44-54.npy"]
+    # path_list = ["npy_files/colreg_tracks_rosbag_2023-08-19-12-54-34.npy"]
+    # path_list = ["npy_files/colreg_tracks_rosbag_2023-09-02-13-17-29.npy"]
+    # 2023-08-19-17-09-16
+    # 2023-09-03-15-21-39
+    # 2023-08-27-11-44-54
+    path_list = ["npy_files/colreg_tracks_rosbag_2023-08-25-10-34-37.npy"]
 
-    r_colregs_2_max=50    #50
+    r_colregs_2_max=100   #50
     r_colregs_3_max=0     #30
     r_colregs_4_max=0     #4
 
+    # SHIP DOMAIN PLOT
+    plotting.plot_ship_domain(radius=r_colregs_2_max)
+    plt.savefig("plotting_results/ship_domain.png", dpi=300)
+    plt.show()
+    sys.exit(1)
+
+    # HISOGRAM PLOT OF SITUATIONS
+    # situation_dict = np.load("situation_dict.npy", allow_pickle=True).item()
+    # plotting.plot_histogram_situations(situation_dict)
+    # # plt.savefig("plotting_results/histogram_situations.png", dpi=300)
+    # plt.show()
+    # sys.exit(1)
+    total_num_situations = 0
+    num_of_scenarios_without_situations = 0
     for k,data_file in enumerate(path_list):
-        plot_statment = 0
+        # if k > 0:
+        #     sys.exit(1)
+        plot_statment = 1
         video_statment = 0
         print(f"Scenario {k+1} of {len(path_list)}")
         print(f"For file: {os.path.basename(data_file).split('.')[0].split('_')[-1]}")
-
+        # temp_in = input("Press enter to continue")
+      
         vessels = read_out_radar_data(data_file=data_file)
         AV = AutoVerification(vessels=vessels, r_colregs_2_max=r_colregs_2_max, r_colregs_3_max=r_colregs_3_max, r_colregs_4_max=r_colregs_4_max)
         AV.find_ranges()
@@ -343,16 +397,33 @@ if __name__ == "__main__":
         for vessel in AV.vessels:   
             AV.determine_situations(vessel)
 
-        for vessel in AV.vessels:
-            # print("Vessel id: ", vessel.id)
-            # print(AV.situation_matrix[vessel.id])
-            # print(np.all(AV.situation_matrix[vessel.id]))
-            if all_elements_zero_or_OP(AV.situation_matrix[vessel.id]):
-                print("No situations found")
-            else:
-                write_scenario_to_file(data_file)
-                plot_statment = 1
-                # video_statment = 1
+       
+        if count_number_of_situations:
+            number_of_sit = 0
+            for vessel in AV.vessels:
+                # print(f"Vessel {vessel.id}")
+                # print(AV.situation_matrix[vessel.id])
+                # for matrix in AV.situation_matrix[vessel.id]:
+                number_of_sit += count_scenarios(AV.situation_matrix[vessel.id], situation_dict)
+                # if number_of_sit_temp == 0:
+                #     num_of_scenarios_without_situations += 1
+                # number_of_sit += number_of_sit_temp
+            if number_of_sit == 0:
+                num_of_scenarios_without_situations += 1
+            total_num_situations += number_of_sit
+            print(f"Number of situations: {number_of_sit}")
+
+
+        # for vessel in AV.vessels:
+        #     # print("Vessel id: ", vessel.id)
+        #     # print(AV.situation_matrix[vessel.id])
+        #     # print(np.all(AV.situation_matrix[vessel.id]))
+        #     if all_elements_zero_or_OP(AV.situation_matrix[vessel.id]):
+        #         print("No situations found")
+        #     else:
+        #         write_scenario_to_file(data_file)
+        #         plot_statment = 1
+        #         # video_statment = 1
 
         if plot_statment:
             font_size = 20
@@ -364,12 +435,17 @@ if __name__ == "__main__":
             plt.savefig(save_name, dpi=300)
             print(f"Saved plot to {save_name}")
             # plt.show()
+            plt.close()
       
         if video_statment:
             video_object = Video(wokring_directory=os.getcwd(),filename=os.path.basename(data_file).split('.')[0].split('_')[-1])
             video_object.create_video(AV_object=AV)
 
-
+    print("Done")
+    print(f"Total number of situations: {total_num_situations}")
+    print(f"Number of scenarios without situations: {num_of_scenarios_without_situations}")
+    if count_number_of_situations:
+        np.save("situation_dict.npy", situation_dict)
 
 
 
