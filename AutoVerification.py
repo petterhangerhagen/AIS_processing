@@ -292,16 +292,11 @@ class AutoVerification:
             f.write(f"{vessel.id}, {obst.id}, {i}, {np.rad2deg(beta)}, {np.rad2deg(beta_180)}, {np.rad2deg(alpha)}, {np.rad2deg(alpha_360)}\n")
 
         # Check for overtaking
-        # if (beta > self.phi_OT_min) and (beta < self.phi_OT_max) and (abs(alpha) < self.alpha_crit_13) \
-        #         and (vessel.speed[i] < obst.speed[i]):
-        print(f"Vessel: {vessel.id}, Obstacle: {obst.id}, Time: {vessel.time_stamps[i]:.2f}, Vessel speed {vessel.speed[i]:.2f}, Obstacle speed {obst.speed[i]:.2f}")
-        print(f"If vessel speed < obstacle speed: {vessel.speed[i] < obst.speed[i]}")
         if (self.phi_OT_min < beta < self.phi_OT_max) and (abs(alpha) < self.alpha_crit_13) \
                 and (vessel.speed[i] < obst.speed[i]):
             # Own-ship is being overtaken by obstacle j and is the stand on vessel.
             self.situation_matrix[vessel.id, obst.id, i] = self.OTSO
-        # elif (alpha_360 > self.phi_OT_min) and (alpha_360 < self.phi_OT_max) \
-        #         and (abs(beta_180) < self.alpha_crit_13) and (vessel.speed[i] > obst.speed[i]):
+
         elif (self.phi_OT_min < alpha_360 < self.phi_OT_max) and (abs(beta_180) < self.alpha_crit_13)\
                  and (vessel.speed[i] > obst.speed[i]):
             # Own-ship is overtaking obstacle j and is the give way vessel.
@@ -313,13 +308,10 @@ class AutoVerification:
             self.situation_matrix[vessel.id, obst.id, i] = self.HO
 
         # Check for crossing
-        # elif (alpha_360 < self.phi_OT_min) and (beta_180 > -self.phi_OT_min) and (beta_180 < self.alpha_crit_15):
-        # elif (alpha_360 < self.phi_OT_min) and (beta_180 > -self.phi_OT_min) and (beta_180 < self.alpha_crit_15):
         elif (beta < self.phi_OT_min) and (-self.phi_OT_min < alpha < self.alpha_crit_15):
             # Crossing situation, own-ship is give-way vessel
             self.situation_matrix[vessel.id, obst.id, i] = self.CRGW
         
-        # elif (beta < self.phi_OT_min) and (alpha > -self.phi_OT_min) and (alpha < self.alpha_crit_15):
         elif (alpha_360 < self.phi_OT_min) and (-self.phi_OT_min < beta_180 < self.alpha_crit_15):
             # Crossing situation, own-ship is stand-on vessel
             self.situation_matrix[vessel.id, obst.id, i] = self.CRSO

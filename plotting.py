@@ -190,7 +190,7 @@ def plot_histogram_situations(situation_dict_in):
                 ha='center', va='bottom', fontsize=font_size
             )
     ax.legend(fontsize=font_size)
-    ax.set_xlabel('Situation', fontsize=font_size)
+    ax.set_xlabel('Situations', fontsize=font_size)
     ax.set_ylabel('Number of Situations', fontsize=font_size)
     ax.set_ylim(0, max(situation_dict_in.values())*1.1)
     plt.tick_params(axis='both', which='major', labelsize=font_size)

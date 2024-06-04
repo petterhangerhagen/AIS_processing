@@ -15,7 +15,7 @@ def read_out_radar_data(data_file):
     timestamps_dict = {}
 
     for vessel_id, track in data.items():
-        # if vessel_id == 1:
+        # if vessel_id == 2:
         #     continue
         timestamps, x_positions, y_positions, yaws, x_velocities, y_velocities = zip(*track)
         timestamps_dict[vessel_id] = timestamps
@@ -26,7 +26,7 @@ def read_out_radar_data(data_file):
     total_timestamps = sorted(list(total_timestamps))
 
     for vessel_id, track in data.items():
-        # if vessel_id == 1:
+        # if vessel_id == 2:
         #     continue
         timestamps, x_positions, y_positions, yaws, x_velocities, y_velocities = zip(*track)
         timestamps = list(timestamps)
@@ -174,7 +174,7 @@ def read_out_radar_data(data_file):
                         np.dot([a[i], a[i + 1], a[i + 2], a[i + 3], a[i + 4]], [-1 / 12, 4 / 3, -5 / 2, 4 / 3, -1 / 12])
                         for i in range(len(a) - 4)]
                     
-        if vessel.travel_dist > 20:
+        if vessel.travel_dist > 10:
             vessels.append(vessel)
         for id_idx, vessel in enumerate(vessels):
             vessel.id = id_idx
@@ -299,6 +299,27 @@ def count_scenarios(matrix, situation_dict):
 #                 count += 1
 #     return count
 
+def closest_point_of_approach(vessels):
+    prev_distance = 1000
+    index_num = None
+    for vessel in vessels:
+        for obst in vessels:
+            if vessel.id == obst.id:
+                continue
+            for k in range(vessel.n_msgs):
+                if np.isnan(vessel.state[0, k]) or np.isnan(obst.state[0, k]):
+                    continue
+                distance = np.linalg.norm(
+                    [vessel.state[0, k] - obst.state[0, k], vessel.state[1, k] - obst.state[1, k]])
+                if distance < prev_distance:
+                    prev_distance = distance
+                    index_num = k
+    if index_num == None:
+        print("No CPA found")
+        return None, None
+    else:
+        return prev_distance, index_num + 0
+
 def scenario_selector(import_selection):
     npy_files = list_npy_files()
     if import_selection == 0:
@@ -321,14 +342,15 @@ def scenario_selector(import_selection):
 
 
 if __name__ == "__main__":
-    plot_statment = 0
+    plot_statment = 1
     video_statment = 0
     count_number_of_situations = 0
 
     # 0 all npy files saved in the colreg_files directory in the radar tracker
     # 1 only the files listed in scenarios_with_colreg_situations.txt 
     # 2 only the files listed in chosen_scenarios.txt
-    import_selection = 3
+    # 3 all npy files saved in the npy_files directory in the AIS_processing
+    import_selection = 0
     path_list = scenario_selector(import_selection)
     # print(path_list)
     # temp_in = input("Press enter to continue")
@@ -343,34 +365,33 @@ if __name__ == "__main__":
     # 2023-08-19-17-09-16
     # 2023-09-03-15-21-39
     # 2023-08-27-11-44-54
-    path_list = ["npy_files/colreg_tracks_rosbag_2023-08-25-10-34-37.npy"]
+    # path_list = ["npy_files/colreg_tracks_rosbag_2023-09-09-14-16-35_new_2.npy"]
+    # path_list = ["npy_files/2023-09-02-13-17-29/colreg_tracks_rosbag_2023-09-02-13-17-29_new2.npy"]
+    # path_list = ["npy_files/colreg_tracks_rosbag_2023-09-09-14-16-35.npy"]
+    path_list = ["npy_files/colreg_tracks_rosbag_2023-09-02-13-17-29.npy"]
 
     r_colregs_2_max=100   #50
     r_colregs_3_max=0     #30
     r_colregs_4_max=0     #4
 
-    # SHIP DOMAIN PLOT
-    plotting.plot_ship_domain(radius=r_colregs_2_max)
-    plt.savefig("plotting_results/ship_domain.png", dpi=300)
-    plt.show()
-    sys.exit(1)
+    # # SHIP DOMAIN PLOT
+    # plotting.plot_ship_domain(radius=r_colregs_2_max)
+    # plt.savefig("plotting_results/ship_domain.png", dpi=300)
+    # plt.show()
+    # sys.exit(1)
 
     # HISOGRAM PLOT OF SITUATIONS
     # situation_dict = np.load("situation_dict.npy", allow_pickle=True).item()
     # plotting.plot_histogram_situations(situation_dict)
-    # # plt.savefig("plotting_results/histogram_situations.png", dpi=300)
-    # plt.show()
+    # plt.savefig("plotting_results/histogram_situations.png", dpi=300)
+    # # plt.show()
     # sys.exit(1)
+
     total_num_situations = 0
     num_of_scenarios_without_situations = 0
     for k,data_file in enumerate(path_list):
-        # if k > 0:
-        #     sys.exit(1)
-        plot_statment = 1
-        video_statment = 0
         print(f"Scenario {k+1} of {len(path_list)}")
         print(f"For file: {os.path.basename(data_file).split('.')[0].split('_')[-1]}")
-        # temp_in = input("Press enter to continue")
       
         vessels = read_out_radar_data(data_file=data_file)
         AV = AutoVerification(vessels=vessels, r_colregs_2_max=r_colregs_2_max, r_colregs_3_max=r_colregs_3_max, r_colregs_4_max=r_colregs_4_max)
@@ -425,12 +446,19 @@ if __name__ == "__main__":
         #         plot_statment = 1
         #         # video_statment = 1
 
+        min_distance, index_of_cpa = closest_point_of_approach(AV.vessels)
+
         if plot_statment:
             font_size = 20
             ax, origin_x, origin_y = plotting.start_plot()
             for k,vessel in enumerate(AV.vessels):
                 plotting.plot_single_vessel(vessel, ax, origin_x, origin_y)
                 plotting.plot_colreg_situation(vessel, AV.situation_matrix[vessel.id], ax, origin_x, origin_y)
+            
+            if min_distance != None:
+                ax.plot(np.array([AV.vessels[0].state[0, index_of_cpa],AV.vessels[1].state[0, index_of_cpa]]) + origin_x, np.array([AV.vessels[0].state[1, index_of_cpa],AV.vessels[1].state[1, index_of_cpa]])+ origin_y, color='black', linestyle='--')
+                # ax.annotate(f"CPA: {min_distance:.2f} m", (AV.vessels[0].state[0, index_of_cpa] + origin_x + 1, AV.vessels[0].state[1, index_of_cpa] + origin_y + 1), fontsize=font_size, color='black')
+                ax.annotate(f"CPA: {min_distance:.2f} m", (AV.vessels[0].state[0, index_of_cpa] + origin_x + 1, 0 + origin_y + 1), fontsize=font_size, color='black')
             save_name = f"plotting_results/plots/plot_{os.path.basename(data_file).split('.')[0].split('_')[-1]}.png"
             plt.savefig(save_name, dpi=300)
             print(f"Saved plot to {save_name}")
