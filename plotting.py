@@ -1,20 +1,9 @@
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 import numpy as np
-import sys
-
- # # # OP = -3  # Obstacle passed
-# # # OTGW = -2  # Overtaking situation - own ship is give way vessel
-# # # CRGW = -1  # Crossing situation - own ship is give way vessel
-# # # NAR = 0  # No applicable rules
-# # # CRSO = 1  # Crossing situation - own ship is stand on vessel
-# # # OTSO = 2  # Overtaking situation - own ship is stand on vessel
-# # # HO = 3  # Head on situation
 
 colors = ['#ff7f0e','#1f77b4', '#2ca02c','#c73838','#c738c0',"#33A8FF",'#33FFBD']  # Orange, blå, grønn, rød, rosa, lyse blå, turkis
-# blue_colors = ['#419ede','#1f77b4', '#144c73']
 blue_colors = ['#2b93db','#1f77b4', '#1b699e']
-# green_colors = ['#4bce4b','#2ca02c', '#1c641c']
 green_colors = ['#32b432','#2ca02c', '#278c27']
 
 situation_dict = {
@@ -149,23 +138,6 @@ def plot_ship_domain(radius):
     circle = plt.Circle(center, radius, color='black', fill=False, linewidth=2)
     ax.add_artist(circle)
 
-# 
-# def plot_histogram_situations(situation_dict_in):
-#     fig, ax = plt.subplots(figsize=(11, 7.166666))
-#     font_size = 20
-
-#     # Plotting the histogram
-#     for key,value in situation_dict_in.items():
-#         if key == -3:
-#             continue
-#         if key == 0:
-#             continue
-#         ax.bar(situation_dict[key][0], value, color=situation_dict[key][2], label=situation_dict[key][0] + " - " + situation_dict[key][1])
-#     ax.set_xlabel('Situation', fontsize=font_size)
-#     ax.set_ylabel('Number of Situations', fontsize=font_size)
-#     plt.tick_params(axis='both', which='major', labelsize=font_size)
-#     plt.tight_layout()
-#     plt.show()
 
 def plot_histogram_situations(situation_dict_in):
     fig, ax = plt.subplots(figsize=(11, 7.166666))

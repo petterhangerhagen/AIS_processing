@@ -270,16 +270,6 @@ def colreg_files_from_chosen_scenarios_txt(npy_files):
         new_path_list.append(os.path.join(colreg_files_dir, file))
     return new_path_list
 
-situation_dict = {
-    -3: 0,      # Obstacle passed
-    0: 0,       # No applicable rules
-    -2: 0,      # Overtaking give way
-    2: 0,       # Overtaking stand on
-    3: 0,       # Head on
-    -1: 0,      # Crossing give way
-    1: 0        # Crossing stand on
-}
-
 # Function to count scenarios
 def count_scenarios(matrix, situation_dict):
     number_of_sit = 0
@@ -291,13 +281,6 @@ def count_scenarios(matrix, situation_dict):
                 number_of_sit += 1
                 current_state = value
     return number_of_sit
-
-# def count_number_of_situations(situation_matrix):
-#     for row in situation_matrix:
-#         for element in row:
-#             if element != 0 and element != -3:
-#                 count += 1
-#     return count
 
 def closest_point_of_approach(vessels):
     prev_distance = 1000
@@ -340,6 +323,15 @@ def scenario_selector(import_selection):
         print("Invalid selection")
         sys.exit(1)
 
+situation_dict = {
+    -3: 0,      # Obstacle passed
+    0: 0,       # No applicable rules
+    -2: 0,      # Overtaking give way
+    2: 0,       # Overtaking stand on
+    3: 0,       # Head on
+    -1: 0,      # Crossing give way
+    1: 0        # Crossing stand on
+}
 
 if __name__ == "__main__":
     plot_statment = 1
@@ -352,22 +344,7 @@ if __name__ == "__main__":
     # 3 all npy files saved in the npy_files directory in the AIS_processing
     import_selection = 0
     path_list = scenario_selector(import_selection)
-    # print(path_list)
-    # temp_in = input("Press enter to continue")
-
-    # path_list = ["/home/aflaptop/Documents/Scripts/AIS_processing/npy_files/colreg_tracks_rosbag_2023-09-02-13-17-29.npy"]
-    # path_list = ["/home/aflaptop/Documents/Scripts/AIS_processing/npy_files/colreg_tracks_rosbag_2023-09-09-14-16-35.npy"]
-    # path_list = ["npy_files/colreg_tracks_rosbag_2023-09-09-14-38-21.npy"]
-    # path_list = ["npy_files/colreg_tracks_rosbag_2023-09-09-14-16-35.npy"]
-    # path_list = ["/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/colreg_files/all_files_old/colreg_tracks_rosbag_2023-08-27-11-44-54.npy"]
-    # path_list = ["npy_files/colreg_tracks_rosbag_2023-08-19-12-54-34.npy"]
-    # path_list = ["npy_files/colreg_tracks_rosbag_2023-09-02-13-17-29.npy"]
-    # 2023-08-19-17-09-16
-    # 2023-09-03-15-21-39
-    # 2023-08-27-11-44-54
-    # path_list = ["npy_files/colreg_tracks_rosbag_2023-09-09-14-16-35_new_2.npy"]
-    # path_list = ["npy_files/2023-09-02-13-17-29/colreg_tracks_rosbag_2023-09-02-13-17-29_new2.npy"]
-    # path_list = ["npy_files/colreg_tracks_rosbag_2023-09-09-14-16-35.npy"]
+  
     path_list = ["npy_files/colreg_tracks_rosbag_2023-09-02-13-17-29.npy"]
 
     r_colregs_2_max=100   #50
@@ -422,29 +399,12 @@ if __name__ == "__main__":
         if count_number_of_situations:
             number_of_sit = 0
             for vessel in AV.vessels:
-                # print(f"Vessel {vessel.id}")
-                # print(AV.situation_matrix[vessel.id])
-                # for matrix in AV.situation_matrix[vessel.id]:
                 number_of_sit += count_scenarios(AV.situation_matrix[vessel.id], situation_dict)
-                # if number_of_sit_temp == 0:
-                #     num_of_scenarios_without_situations += 1
-                # number_of_sit += number_of_sit_temp
             if number_of_sit == 0:
                 num_of_scenarios_without_situations += 1
             total_num_situations += number_of_sit
             print(f"Number of situations: {number_of_sit}")
 
-
-        # for vessel in AV.vessels:
-        #     # print("Vessel id: ", vessel.id)
-        #     # print(AV.situation_matrix[vessel.id])
-        #     # print(np.all(AV.situation_matrix[vessel.id]))
-        #     if all_elements_zero_or_OP(AV.situation_matrix[vessel.id]):
-        #         print("No situations found")
-        #     else:
-        #         write_scenario_to_file(data_file)
-        #         plot_statment = 1
-        #         # video_statment = 1
 
         min_distance, index_of_cpa = closest_point_of_approach(AV.vessels)
 
@@ -457,12 +417,10 @@ if __name__ == "__main__":
             
             if min_distance != None:
                 ax.plot(np.array([AV.vessels[0].state[0, index_of_cpa],AV.vessels[1].state[0, index_of_cpa]]) + origin_x, np.array([AV.vessels[0].state[1, index_of_cpa],AV.vessels[1].state[1, index_of_cpa]])+ origin_y, color='black', linestyle='--')
-                # ax.annotate(f"CPA: {min_distance:.2f} m", (AV.vessels[0].state[0, index_of_cpa] + origin_x + 1, AV.vessels[0].state[1, index_of_cpa] + origin_y + 1), fontsize=font_size, color='black')
                 ax.annotate(f"CPA: {min_distance:.2f} m", (AV.vessels[0].state[0, index_of_cpa] + origin_x + 1, 0 + origin_y + 1), fontsize=font_size, color='black')
             save_name = f"plotting_results/plots/plot_{os.path.basename(data_file).split('.')[0].split('_')[-1]}.png"
             plt.savefig(save_name, dpi=300)
             print(f"Saved plot to {save_name}")
-            # plt.show()
             plt.close()
       
         if video_statment:

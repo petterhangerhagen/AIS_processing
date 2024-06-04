@@ -13,47 +13,11 @@ from matplotlib.colors import LinearSegmentedColormap
 
 warnings.filterwarnings("ignore")
 
-def start_plot(ax):
-    font_size = 20
-
-    # Plotting the occupancy grid'
-    data = np.load(f"npy_files/occupancy_grid_without_dilating.npy",allow_pickle='TRUE').item()
-    occupancy_grid = data["occupancy_grid"]
-    origin_x = data["origin_x"]
-    origin_y = data["origin_y"]
-
-    colors = [(1, 1, 1), (0.8, 0.8, 0.8)]  # Black to light gray
-    cm = LinearSegmentedColormap.from_list('custom_gray', colors, N=256)
-    ax.imshow(occupancy_grid, cmap=cm, interpolation='none', origin='upper', extent=[0, occupancy_grid.shape[1], 0, occupancy_grid.shape[0]])
-    
-    ax.set_xlim(origin_x-120,origin_x + 120)
-    ax.set_ylim(origin_y-140, origin_y + 20)
-    ax.set_aspect('equal')
-    ax.set_xlabel('East [m]',fontsize=font_size)
-    ax.set_ylabel('North [m]',fontsize=font_size)
-    plt.tick_params(axis='both', which='major', labelsize=font_size)
-    plt.tight_layout()
-
-    # reformating the x and y axis
-    x_axis_list = np.arange(origin_x-120,origin_x+121,20)
-    x_axis_list_str = []
-    for x in x_axis_list:
-        x_axis_list_str.append(str(int(x-origin_x)))
-    ax.set_xticks(ticks=x_axis_list)
-    ax.set_xticklabels(x_axis_list_str)
-    # plt.xticks(x_axis_list, x_axis_list_str)
-
-    y_axis_list = np.arange(origin_y-140,origin_y+21,20)
-    y_axis_list_str = []
-    for y in y_axis_list:
-        y_axis_list_str.append(str(int(y-origin_y)))
-    ax.set_yticks(ticks=y_axis_list)
-    ax.set_yticklabels(y_axis_list_str)
-    # plt.yticks(y_axis_list, y_axis_list_str)
-
-    ax.grid(True)
-
-    return ax, origin_x, origin_y
+"""
+The difference between this code and Inger Hagen's code is:
+    - __init__
+    - determine_applicable_rules
+"""
 
 class AutoVerification:
     # "Constants"
@@ -118,37 +82,11 @@ class AutoVerification:
         :param alpha_critical_15: Angle defining a crossing situation cf. rule 15.
         :type alpha_critical_15: float
         """
-        # Coastline incorporation
 
-        # try:
-        #    self.coastline = pd.read_csv("coastline.csv", sep = ';')
-        #    self.using_coastline = True
-        # except:
-        #    #print("Could not read coastline.csv")
-        #    self.using_coastline = False 
 
         self.vessels = vessels
         self.n_vessels = len(vessels)
         self.n_msgs = self.vessels[0].n_msgs
-        # # # if len(ais_path) != 0:
-        # # #     self.read_AIS(ais_path, ship_path)
-
-        # # # # Just a slightly convoluted method of storing case name/code
-        # # # case_name = ais_path.replace("-sec.csv", "")
-        # # # self.case_name = case_name
-        # # # for i in reversed(range(len(case_name))):
-        # # #     if ais_path[i] == "-":
-        # # #         self.case_name = case_name.replace(case_name[i - len(case_name):], "")[-5:]
-        # # #         break
-
-        # # # self.n_vessels = len(self.vessels)
-        # # # if self.n_vessels == 0:
-        # # #     print("No vessels in file:", ais_path)
-        # # #     return
-
-        # # # self.n_msgs = self.vessels[0].n_msgs
-        # # # for vessel in self.vessels:
-        # # #     self.n_msgs = min(self.n_msgs, vessel.n_msgs)
 
         self.r_colregs = [r_colregs_2_max, r_colregs_3_max, r_colregs_4_max]
         self.r_detect = r_colregs_2_max  # Set detection time equal to time when COLREGS start applying
@@ -254,42 +192,14 @@ class AutoVerification:
         dist_to_obst[1] = obst.state[1, i] - vessel.state[1, i]
        
         # Relative bearing of obstacle as seen from own ship
-        # beta = normalize_2pi(normalize_2pi(np.arctan2(dist_to_obst[1], dist_to_obst[0])) - vessel.state[2, i])
         beta = normalize_2pi(normalize_2pi(np.arctan2(dist_to_obst[0], dist_to_obst[1])) - vessel.state[2, i])
         beta_180 = normalize_pi(beta)
         # Relative bearing of own ship as seen from the obstacle
-        # alpha = normalize_pi(normalize_2pi(np.arctan2(-dist_to_obst[1], -dist_to_obst[0])) - obst.state[2, i])
         alpha = normalize_pi(normalize_2pi(np.arctan2(-dist_to_obst[0], -dist_to_obst[1])) - obst.state[2, i])
-
         alpha_360 = normalize_2pi(alpha)
         
-        print_this = False
-        if print_this:
-            print(f"Current heading: {np.rad2deg(vessel.state[2, i]):.2f}")
-            print(f"Angle between own ship and obstacle: {np.rad2deg(np.arctan2(dist_to_obst[1], dist_to_obst[0])):.2f}")
-            print(f"Vessel: {vessel.id}, Obstacle: {obst.id}, Time: {vessel.time_stamps[i]:.2f}, Beta: {np.rad2deg(beta):.2f}, Beta_180: {np.rad2deg(beta_180):.2f}, Alpha: {np.rad2deg(alpha):.2f}, Alpha_360: {np.rad2deg(alpha_360):.2f}")
-            print(f"{dist_to_obst[0]:.2f}, {dist_to_obst[1]:.2f}")
-
-        plot = False
-        if plot:
-            self.ax.clear()
-            self.ax, self.origin_x, self.origin_y = start_plot(self.ax)
-            self.ax.plot(np.array([obst.state[0, i],vessel.state[0,i]]) + self.origin_x, np.array([vessel.state[1, i],vessel.state[1, i]]) + self.origin_y, label="X distance")
-            self.ax.plot(np.array([vessel.state[0, i], vessel.state[0,i]]) + self.origin_x, np.array([obst.state[1, i],vessel.state[1, i]]) + self.origin_y, label="Y distance")
-        
-            self.ax.quiver(vessel.state[0, i] + self.origin_x, vessel.state[1, i] + self.origin_y, 2*np.sin(vessel.state[2, i]), 2*np.cos(vessel.state[2, i]))
-            self.ax.quiver(obst.state[0, i] + self.origin_x, obst.state[1, i] + self.origin_y, 2*np.sin(obst.state[2, i]), 2*np.cos(obst.state[2, i]))
-            self.ax.scatter(vessel.state[0, 0:i+1] + self.origin_x , vessel.state[1, 0:i+1] + self.origin_y, label="Vessel")
-            self.ax.scatter(obst.state[0, 0:i+1] + self.origin_x, obst.state[1, 0:i+1] + self.origin_y, label="Obstacle")
-            # self.ax.plot(obst.state[0, :], obst.state[1, :], label="Obstacle")
-            self.ax.plot(np.array([vessel.state[0, i], obst.state[0, i]]) + self.origin_x, np.array([vessel.state[1, i], obst.state[1, i]]) + self.origin_y, label="Range")
-            self.ax.legend()
-            plt.pause(0.1)
-            temp_in = input("Press enter to continue")
-
-       
-        with open("angles.txt", "a") as f:
-            f.write(f"{vessel.id}, {obst.id}, {i}, {np.rad2deg(beta)}, {np.rad2deg(beta_180)}, {np.rad2deg(alpha)}, {np.rad2deg(alpha_360)}\n")
+        # with open("angles.txt", "a") as f:
+        #     f.write(f"{vessel.id}, {obst.id}, {i}, {np.rad2deg(beta)}, {np.rad2deg(beta_180)}, {np.rad2deg(alpha)}, {np.rad2deg(alpha_360)}\n")
 
         # Check for overtaking
         if (self.phi_OT_min < beta < self.phi_OT_max) and (abs(alpha) < self.alpha_crit_13) \
@@ -323,6 +233,7 @@ class AutoVerification:
 
         obst_passed = False
         os_passed = False
+        # Removed since the velocities already are in NED
         # vo = rotate(obst.state[3:5, i], obst.state[2, i])
         # vs = rotate(vessel.state[3:5, i], vessel.state[2, i])
         vo = obst.state[3:5, i]
@@ -333,36 +244,6 @@ class AutoVerification:
 
         if np.dot(vs, los) < np.cos(self.phi_OT_min) * np.linalg.norm(vs):
             obst_passed = True  # Obstacle passed own ship
-
-        plot2 = False
-        if plot2:
-            if os_passed and obst_passed:
-                print(vessel.state[:, i])
-                print(obst.state[:, i])
-                print(f"vo: {vo}, vs: {vs}, los: {los}, i: {i}")
-                print(np.dot(vo, -los), np.cos(self.phi_OT_min) * np.linalg.norm(vo))
-                print(np.dot(vs, los), np.cos(self.phi_OT_min) * np.linalg.norm(vs))
-                fig_idk, ax = plt.subplots(figsize=(11, 7.166666))
-                ax, origin_x, origin_y = start_plot(ax)
-                # origin_x = 0
-                # origin_y = 0
-                ax.scatter(vessel.state[0, i] + origin_x, vessel.state[1, i] + origin_y, label="Vessel")
-                # ax.quiver(vessel.state[0, i] + origin_x, vessel.state[1, i] + origin_y, 2*np.cos(vessel.state[2, i]), 2*np.sin(vessel.state[2, i]))
-                # ax.quiver(vessel.state[0, i] + origin_x, vessel.state[1, i] + origin_y, vo[0], vo[1], color='r')
-                
-                ax.scatter(obst.state[0, i] + origin_x, obst.state[1, i] + origin_y, label="Obstacle")
-                # ax.quiver(obst.state[0, i] + origin_x, obst.state[1, i] + origin_y, 2*np.cos(obst.state[2, i]), 2*np.sin(obst.state[2, i]))
-                # ax.quiver(obst.state[0, i] + origin_x, obst.state[1, i] + origin_y, vs[0], vs[1], color='g')
-
-                # ax.quiver(vessel.state[0, i] + origin_x, vessel.state[1, i] + origin_y, los[0], los[1], color='b')
-                # ax.quiver(obst.state[0, i] + origin_x, obst.state[1, i] + origin_y, -los[0], -los[1], color='b')
-
-                plt.show()
-                plt.close(fig_idk)
-                # print("Both passed")
-                # print(vessel.id, obst.id, vessel.time_stamps[i])
-                # temp_in = input("Press enter to continue")
-            # print(f"Own ship passed obstacle: {os_passed}, Obstacle passed own ship: {obst_passed}")
 
         return obst_passed, os_passed
 
@@ -1265,3 +1146,45 @@ class Parameters:
     cpa_idx: int
     start_idx: int
     stop_idx: int
+
+def start_plot(ax):
+    font_size = 20
+
+    # Plotting the occupancy grid'
+    data = np.load(f"npy_files/occupancy_grid_without_dilating.npy",allow_pickle='TRUE').item()
+    occupancy_grid = data["occupancy_grid"]
+    origin_x = data["origin_x"]
+    origin_y = data["origin_y"]
+
+    colors = [(1, 1, 1), (0.8, 0.8, 0.8)]  # Black to light gray
+    cm = LinearSegmentedColormap.from_list('custom_gray', colors, N=256)
+    ax.imshow(occupancy_grid, cmap=cm, interpolation='none', origin='upper', extent=[0, occupancy_grid.shape[1], 0, occupancy_grid.shape[0]])
+    
+    ax.set_xlim(origin_x-120,origin_x + 120)
+    ax.set_ylim(origin_y-140, origin_y + 20)
+    ax.set_aspect('equal')
+    ax.set_xlabel('East [m]',fontsize=font_size)
+    ax.set_ylabel('North [m]',fontsize=font_size)
+    plt.tick_params(axis='both', which='major', labelsize=font_size)
+    plt.tight_layout()
+
+    # reformating the x and y axis
+    x_axis_list = np.arange(origin_x-120,origin_x+121,20)
+    x_axis_list_str = []
+    for x in x_axis_list:
+        x_axis_list_str.append(str(int(x-origin_x)))
+    ax.set_xticks(ticks=x_axis_list)
+    ax.set_xticklabels(x_axis_list_str)
+    # plt.xticks(x_axis_list, x_axis_list_str)
+
+    y_axis_list = np.arange(origin_y-140,origin_y+21,20)
+    y_axis_list_str = []
+    for y in y_axis_list:
+        y_axis_list_str.append(str(int(y-origin_y)))
+    ax.set_yticks(ticks=y_axis_list)
+    ax.set_yticklabels(y_axis_list_str)
+    # plt.yticks(y_axis_list, y_axis_list_str)
+
+    ax.grid(True)
+
+    return ax, origin_x, origin_y
