@@ -16,6 +16,7 @@ import os
 from video import Video
 import utilities as utils
 import radar_data_to_vessels
+from AutoVerification import AutoVerification
 
 def scenario_selector(import_selection, colreg_files_dir):
     npy_files = utils.list_npy_files(colreg_files_dir)
