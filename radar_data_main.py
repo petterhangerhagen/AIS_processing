@@ -1,3 +1,13 @@
+"""
+Script Title: radar_data_main.py
+Author: Petter Hangerhagen
+Email: petthang@stud.ntnu.no
+Date: July 4th, 2024
+Description: This is the main file in this codebase. It reads the radar data and creates a list of vessel objects, which is the input to the AutoVerification class.
+From the radar-based dataset all the scenarios containing more than one vessel track is included in the colreg_complete_dataset directory.
+This scripts reads different scenarios from the colreg_complete_dataset directory and creates a list of vessel objects form the radar_data_to_vessels.py file.
+"""
+
 import numpy as np
 from AutoVerification import AutoVerification, Vessel
 from scipy.ndimage.filters import gaussian_filter
@@ -6,318 +16,29 @@ import sys
 import matplotlib.pyplot as plt
 import os
 from video import Video
+import utilities as utils
+import radar_data_to_vessels
 
-def read_out_radar_data(data_file):
-    # The message need to be of this form [x y yaw u v]
-    vessels = []
-    data = np.load(data_file, allow_pickle=True).item()
+def scenario_selector(import_selection, colreg_files_dir):
+    npy_files = utils.list_npy_files(colreg_files_dir)
 
-    timestamps_dict = {}
-
-    for vessel_id, track in data.items():
-        # if vessel_id == 2:
-        #     continue
-        timestamps, x_positions, y_positions, yaws, x_velocities, y_velocities = zip(*track)
-        timestamps_dict[vessel_id] = timestamps
-
-    total_timestamps = set()
-    for vessel_id, timestamps in timestamps_dict.items():
-        total_timestamps.update(timestamps)
-    total_timestamps = sorted(list(total_timestamps))
-
-    for vessel_id, track in data.items():
-        # if vessel_id == 2:
-        #     continue
-        timestamps, x_positions, y_positions, yaws, x_velocities, y_velocities = zip(*track)
-        timestamps = list(timestamps)
-
-        new_timestamps = np.zeros(len(total_timestamps))
-        j = 0
-        for i in range(len(total_timestamps)):
-            if total_timestamps[i] == timestamps[j]:
-                new_timestamps[i] = timestamps[j]
-                # j can not be greater than the length of timestamps
-                if j < len(timestamps) - 1:
-                    j += 1
-            else:
-                new_timestamps[i] = np.nan
-
-        x_positions_new = np.zeros(len(total_timestamps))
-        y_positions_new = np.zeros(len(total_timestamps))
-        yaws_new = np.zeros(len(total_timestamps))
-        x_velocities_new = np.zeros(len(total_timestamps))
-        y_velocities_new = np.zeros(len(total_timestamps))
-
-        # NOTE: The velocities are in NED frame
-        for i in range(len(new_timestamps)):
-            if np.isnan(new_timestamps[i]):
-                x_positions_new[i] = np.nan
-                y_positions_new[i] = np.nan
-                yaws_new[i] = np.nan
-                x_velocities_new[i] = np.nan
-                y_velocities_new[i] = np.nan
-            else:
-                index = timestamps.index(new_timestamps[i])
-                x_positions_new[i] = x_positions[index]
-                y_positions_new[i] = y_positions[index]
-                yaws_new[i] = yaws[index]
-                x_velocities_new[i] = x_velocities[index]
-                y_velocities_new[i] = y_velocities[index]
-                
-        ### Create vessel object
-        vessel = Vessel(vessel_id, len(total_timestamps))
-        vessel.time_stamps = total_timestamps
-        vessel.id = vessel_id
-        vessel.stateDateTime = total_timestamps
-        for j in range(len(total_timestamps)):
-            vessel.state[0, j] = x_positions_new[j]
-            vessel.state[1, j] = y_positions_new[j]
-            vessel.state[2, j] = np.deg2rad(yaws_new[j])
-            vessel.state[3, j] = x_velocities_new[j]
-            vessel.state[4, j] = y_velocities_new[j]
-
-        # Logic for finding the first and last nan index, the nan index is the index of the first and last non nan value
-        first_element_nan = False
-        for k, elem in enumerate(vessel.state[0]):
-            if k == 0:
-                if np.isnan(elem):
-                    first_element_nan = True
-                else:
-                    vessel.nan_idx[0] = k
-                    break
-
-            if first_element_nan:
-                if not np.isnan(elem):
-                    vessel.nan_idx[0] = k
-                    break
-        for k in range(vessel.nan_idx[0][0], len(vessel.state[0])):
-            if np.isnan(vessel.state[0, k]):
-                vessel.nan_idx[1] = k -1 
-                break
-            if k == len(total_timestamps) - 1:
-                vessel.nan_idx[1] = k
-
-        sog = np.sqrt(np.square(vessel.state[3]) + np.square(vessel.state[4]))
-        vessel.speed = sog
-
-        dt = np.diff(total_timestamps)
-        dt = np.append(dt, dt[-1])
-        dt = np.mean(dt)
-        vessel.dT = dt
-
-        vessel.travel_dist = np.linalg.norm(
-                [vessel.state[0, vessel.nan_idx[1]] - vessel.state[0, vessel.nan_idx[0]], \
-                 vessel.state[1, vessel.nan_idx[1]] - vessel.state[1, vessel.nan_idx[0]]])
-     
-        if vessel.travel_dist > 50:
-
-                # Calculate derivative of speed
-                speed = np.array(vessel.speed)
-
-                target_area = np.isnan(speed) == False
-                speed[target_area] = gaussian_filter(speed[target_area], sigma=1)
-
-                target_area = [np.logical_and(np.logical_and(target_area[i] == True, target_area[i + 2] == True),
-                                              target_area[i + 1] == True) for i in range(len(target_area) - 2)]
-                target_area = np.append(False, target_area)
-                target_area = np.append(target_area, False)
-                if speed.size >= 3:
-                    vessel.speed_der[:] = [0 for i in range(len(vessel.speed))]
-                    speed = speed[np.isnan(speed) == False]
-                    try:
-                        vessel.speed_der[target_area] = [np.dot([speed[i], speed[i + 1], speed[i + 2]], [-0.5, 0, 0.5])
-                                                         for i in range(len(speed) - 2)]
-                    except:
-                        pass
-
-                        # Calculate derivatives of yaw
-                a = np.array(vessel.state[2, :])
-                d = np.append([0], a[1:] - a[:-1], 0)
-
-                d[np.isnan(d)] = 0
-                d[abs(d) < np.pi] = 0
-                d[d < -np.pi] = -2 * np.pi
-                d[d > np.pi] = 2 * np.pi  # d is now 2pi or -2pi at jumps from pi to -pi or opposite
-
-                s = np.cumsum(d, axis=0)  # sum of all previuos changes
-
-                target_area = np.isnan(a) == False
-
-                a[target_area] = a[target_area] - s[
-                    target_area]  # this is to not have sudden changes from pi to -pi or opposite count as maneuvers
-
-                a[target_area] = gaussian_filter(a[target_area], sigma=2)
-
-                target_area = [np.logical_and(target_area[i] == True, True == target_area[i + 2]) for i in
-                               range(len(target_area) - 2)]
-                target_area = np.append(False, target_area)
-                target_area = np.append(target_area, False)
-                if a.size >= 3:
-                    a = a[np.isnan(a) == False]
-                    vessel.maneuver_der[0, :] = [0 for i in range(len(vessel.state[2, :]))]
-                    vessel.maneuver_der[0, target_area] = [np.dot([a[i], a[i + 1], a[i + 2]], [-0.5, 0, 0.5]) for i in
-                                                           range(len(a) - 2)]
-                    vessel.maneuver_der[1, :] = [0 for i in range(len(vessel.state[2, :]))]
-                    vessel.maneuver_der[1, target_area] = [np.dot([a[i], a[i + 1], a[i + 2]], [1, -2, 1]) for i in
-                                                           range(len(a) - 2)]
-
-                    target_area = [np.logical_and(target_area[i] == True, True == target_area[i + 2]) for i in
-                                   range(len(target_area) - 2)]
-                    target_area = np.append(False, target_area)
-                    target_area = np.append(target_area, False)
-                    vessel.maneuver_der[2, :] = [0 for i in range(len(vessel.state[2, :]))]
-                    vessel.maneuver_der[2, target_area] = [
-                        np.dot([a[i], a[i + 1], a[i + 2], a[i + 3], a[i + 4]], [-0.5, 1, 0, -1, 0.5]) for i in
-                        range(len(a) - 4)]
-                    vessel.maneuver_der[1, :] = [0 for i in range(len(vessel.state[2, :]))]
-                    vessel.maneuver_der[1, target_area] = [
-                        np.dot([a[i], a[i + 1], a[i + 2], a[i + 3], a[i + 4]], [-1 / 12, 4 / 3, -5 / 2, 4 / 3, -1 / 12])
-                        for i in range(len(a) - 4)]
-                    
-        if vessel.travel_dist > 10:
-            vessels.append(vessel)
-        for id_idx, vessel in enumerate(vessels):
-            vessel.id = id_idx
-    return vessels
-
-def all_elements_zero_or_OP(matrix):
-    for row in matrix:
-        for element in row:
-            if element != 0 and element != -3:  # Modified condition
-                return False
-    return True
-
-def write_scenario_to_file(data_file):
-    data_file = data_file.split("/")[-1]
-
-    txt_file = "scenarios_with_colreg_situations.txt"
-    with open(txt_file, 'r') as f:
-        # need to check if the name is already written
-        lines = f.readlines()
-        already_written = False
-        for line in lines:
-            if data_file == line[:-1]:
-                already_written = True
-                break
-    with open(txt_file, 'a') as f:
-        if not already_written:
-            f.write(data_file + "\n")
-
-def list_npy_files():
-    colreg_files_dir = "/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/colreg_files/all_files_old"
-    directory = colreg_files_dir
-    npy_files = [file for file in os.listdir(directory) if file.endswith('.npy')]
-    new_files = []
-    for file in npy_files:
-        new_files.append(os.path.join(directory, file))
-    return new_files
-
-def list_local_npy_files():
-    colreg_files_dir = "/home/aflaptop/Documents/Scripts/AIS_processing/npy_files"
-    directory = colreg_files_dir
-    npy_files = [file for file in os.listdir(directory) if file.startswith('colreg_tracks_rosbag') and file.endswith('.npy')]
-    new_files = []
-    for file in npy_files:
-        new_files.append(os.path.join(directory, file))
-    return new_files
-
-def find_only_colreg_files(npy_files):
-    path_list = []
-    colreg_situation_files = []
-    with open("scenarios_with_colreg_situations.txt", "r") as f:
-        lines = f.readlines()
-        for line in lines:
-            colreg_situation_files.append(line[:-1])
-    temp_npy_files = []
-    for file in npy_files:
-        temp_npy_files.append(file.split("/")[-1])
-    
-    for file in temp_npy_files:
-        for colreg_file in colreg_situation_files:
-            if file == colreg_file:
-                path_list.append(file)
-    
-    new_path_list = []
-    colreg_files_dir = "/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/colreg_files"
-    for file in path_list:
-        new_path_list.append(os.path.join(colreg_files_dir, file))
-
-    return new_path_list
-
-def colreg_files_from_chosen_scenarios_txt(npy_files):
-    path_list = []
-    colreg_situation_files = []
-    with open("chosen_scenarios.txt", "r") as f:
-        lines = f.readlines()
-        for line in lines:
-            date = line.split(" ")[0]
-            date = line.strip()     # Remove the newline character
-            scenario = f"colreg_tracks_rosbag_{date}.npy"
-            colreg_situation_files.append(scenario)
-
-    temp_npy_files = []
-    for file in npy_files:
-        temp_npy_files.append(file.split("/")[-1])
-    
-    for file in temp_npy_files:
-        for colreg_file in colreg_situation_files:
-            if file == colreg_file:
-                path_list.append(file)
-
-    new_path_list = []
-    colreg_files_dir = "/home/aflaptop/Documents/radar_tracker/Radar-data-processing-and-analysis/code/colreg_files"
-    for file in path_list:
-        new_path_list.append(os.path.join(colreg_files_dir, file))
-    return new_path_list
-
-# Function to count scenarios
-def count_scenarios(matrix, situation_dict):
-    number_of_sit = 0
-    for row in matrix:
-        current_state = 0  # Start with no applicable rules
-        for value in row:
-            if value != current_state and value != 0 and value != -3:
-                situation_dict[value] += 1
-                number_of_sit += 1
-                current_state = value
-    return number_of_sit
-
-def closest_point_of_approach(vessels):
-    prev_distance = 1000
-    index_num = None
-    for vessel in vessels:
-        for obst in vessels:
-            if vessel.id == obst.id:
-                continue
-            for k in range(vessel.n_msgs):
-                if np.isnan(vessel.state[0, k]) or np.isnan(obst.state[0, k]):
-                    continue
-                distance = np.linalg.norm(
-                    [vessel.state[0, k] - obst.state[0, k], vessel.state[1, k] - obst.state[1, k]])
-                if distance < prev_distance:
-                    prev_distance = distance
-                    index_num = k
-    if index_num == None:
-        print("No CPA found")
-        return None, None
-    else:
-        return prev_distance, index_num + 0
-
-def scenario_selector(import_selection):
-    npy_files = list_npy_files()
+    # All npy files in the colreg_files_dir
     if import_selection == 0:
         return npy_files
     
+    # Only the files listed in scenarios_with_colreg_situations.txt
     elif import_selection == 1:
-        path_list = find_only_colreg_files(npy_files)
+        path_list = utils.find_only_colreg_files(npy_files, colreg_files_dir)
         return path_list
     
+    # Only the files listed in chosen_scenarios.txt
     elif import_selection == 2:
-        path_list = colreg_files_from_chosen_scenarios_txt(npy_files)
+        path_list = utils.colreg_files_from_chosen_scenarios_txt(npy_files, colreg_files_dir)
         return path_list
 
+    # All npy files saved in the npy_files directory
     elif import_selection == 3:
-        path_list = list_local_npy_files()
+        path_list = utils.list_local_npy_files()
         return path_list
     else:
         print("Invalid selection")
@@ -334,19 +55,27 @@ situation_dict = {
 }
 
 if __name__ == "__main__":
+    # Get the file path to the dataset
+    working_dir = os.getcwd()
+    colreg_files_dir = "colreg_complete_dataset"
+    colreg_files_dir = os.path.join(working_dir, colreg_files_dir)
+
+    # Turn on/off different functionalities
     plot_statment = 1
     video_statment = 0
     count_number_of_situations = 0
+    add_CPA = 1
 
-    # 0 all npy files saved in the colreg_files directory in the radar tracker
-    # 1 only the files listed in scenarios_with_colreg_situations.txt 
-    # 2 only the files listed in chosen_scenarios.txt
-    # 3 all npy files saved in the npy_files directory in the AIS_processing
-    import_selection = 0
-    path_list = scenario_selector(import_selection)
+    """
+    Import selection:
+    0 - all npy files saved save in dataset directory
+    1 - only the files listed in scenarios_with_colreg_situations.txt 
+    2 - only the files listed in chosen_scenarios.txt
+    3 - all npy files saved in the npy_files directory
+    """
+    import_selection = 3
+    path_list = scenario_selector(import_selection, colreg_files_dir)
   
-    path_list = ["npy_files/colreg_tracks_rosbag_2023-09-02-13-17-29.npy"]
-
     r_colregs_2_max=100   #50
     r_colregs_3_max=0     #30
     r_colregs_4_max=0     #4
@@ -370,12 +99,11 @@ if __name__ == "__main__":
         print(f"Scenario {k+1} of {len(path_list)}")
         print(f"For file: {os.path.basename(data_file).split('.')[0].split('_')[-1]}")
       
-        vessels = read_out_radar_data(data_file=data_file)
+        vessels = radar_data_to_vessels.read_out_radar_data(data_file=data_file)
         AV = AutoVerification(vessels=vessels, r_colregs_2_max=r_colregs_2_max, r_colregs_3_max=r_colregs_3_max, r_colregs_4_max=r_colregs_4_max)
         AV.find_ranges()
 
         for vessel in AV.vessels:
-            AV.find_maneuver_detect_index(vessel)  # Find maneuvers made by ownship
             for obst in AV.vessels:
                 if vessel.id == obst.id:
                     continue
@@ -399,14 +127,14 @@ if __name__ == "__main__":
         if count_number_of_situations:
             number_of_sit = 0
             for vessel in AV.vessels:
-                number_of_sit += count_scenarios(AV.situation_matrix[vessel.id], situation_dict)
+                number_of_sit += utils.count_scenarios(AV.situation_matrix[vessel.id], situation_dict)
             if number_of_sit == 0:
                 num_of_scenarios_without_situations += 1
             total_num_situations += number_of_sit
             print(f"Number of situations: {number_of_sit}")
 
-
-        min_distance, index_of_cpa = closest_point_of_approach(AV.vessels)
+        if add_CPA:
+            min_distance, index_of_cpa = utils.closest_point_of_approach(AV.vessels)
 
         if plot_statment:
             font_size = 20
@@ -415,17 +143,20 @@ if __name__ == "__main__":
                 plotting.plot_single_vessel(vessel, ax, origin_x, origin_y)
                 plotting.plot_colreg_situation(vessel, AV.situation_matrix[vessel.id], ax, origin_x, origin_y)
             
-            if min_distance != None:
-                ax.plot(np.array([AV.vessels[0].state[0, index_of_cpa],AV.vessels[1].state[0, index_of_cpa]]) + origin_x, np.array([AV.vessels[0].state[1, index_of_cpa],AV.vessels[1].state[1, index_of_cpa]])+ origin_y, color='black', linestyle='--')
-                ax.annotate(f"CPA: {min_distance:.2f} m", (AV.vessels[0].state[0, index_of_cpa] + origin_x + 1, 0 + origin_y + 1), fontsize=font_size, color='black')
+            if add_CPA:
+                if min_distance != None:
+                    ax.plot(np.array([AV.vessels[0].state[0, index_of_cpa],AV.vessels[1].state[0, index_of_cpa]]) + origin_x, np.array([AV.vessels[0].state[1, index_of_cpa],AV.vessels[1].state[1, index_of_cpa]])+ origin_y, color='black', linestyle='--')
+                    ax.annotate(f"CPA: {min_distance:.2f} m", (AV.vessels[0].state[0, index_of_cpa] + origin_x + 1, 0 + origin_y + 1), fontsize=font_size, color='black')
             save_name = f"plotting_results/plots/plot_{os.path.basename(data_file).split('.')[0].split('_')[-1]}.png"
             plt.savefig(save_name, dpi=300)
             print(f"Saved plot to {save_name}")
+            plt.show()
             plt.close()
       
         if video_statment:
             video_object = Video(wokring_directory=os.getcwd(),filename=os.path.basename(data_file).split('.')[0].split('_')[-1])
             video_object.create_video(AV_object=AV)
+        
 
     print("Done")
     print(f"Total number of situations: {total_num_situations}")

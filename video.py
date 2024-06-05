@@ -1,9 +1,9 @@
 """
-Script Title: Video
-Author: Petter Hangerhagen and Audun Gullikstad Hem
+Script Title: video.py
+Author: Petter Hangerhagen
 Email: petthang@stud.ntnu.no
 Date: February 27, 2024
-Description: This script is not directly from Audun Gullikstad Hem mulit-target tracker (https://doi.org/10.24433/CO.3351829.v1), but it is inspired by the plotting script which is from the tracker. 
+Description: This script is inspired by the plotting script in Audun Gullikstad Hem's mulit-target tracker (https://doi.org/10.24433/CO.3351829.v1). 
 It is used to create a video of the tracking scenario.
 """
 
@@ -109,8 +109,6 @@ class Video(object):
         self.legend_elements = legend_elements
 
     def create_video(self, AV_object):
-        
-        
         vessels = AV_object.vessels
         timestamps = vessels[0].time_stamps
 

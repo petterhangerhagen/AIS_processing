@@ -1,3 +1,10 @@
+"""
+Script Title: plotting.py
+Author: Petter Hangerhagen
+Email: petthang@stud.ntnu.no
+Date: June 4th, 2024
+Description: This script contains functions used to plot the colreg situations and the vessel tracks.
+"""
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 import numpy as np
@@ -16,6 +23,7 @@ situation_dict = {
     3: ["HO", "Head on", colors[3]]
 }
 
+# Function that defines the base plot
 def start_plot():
     fig, ax = plt.subplots(figsize=(11, 7.166666))
     font_size = 20
@@ -59,6 +67,7 @@ def start_plot():
 
     return ax, origin_x, origin_y
 
+# Function to plot a single vessel track, also adds the legend with the different situations from the situation_dict
 def plot_single_vessel(vessel,ax,origin_x,origin_y):
     x, y, psi, _, _ = vessel.state
 
@@ -99,6 +108,7 @@ def plot_single_vessel(vessel,ax,origin_x,origin_y):
     font_size = 17
     ax.legend(handles=legend_elements, fontsize=font_size, loc='lower right')
 
+# Function to plot the colreg situations
 def plot_colreg_situation(vessel, situation_matrix, ax, origin_x, origin_y):
     x, y, psi, _, _ = vessel.state
 
@@ -127,7 +137,7 @@ def plot_colreg_situation(vessel, situation_matrix, ax, origin_x, origin_y):
                 ax.scatter(x[idx] + origin_x, y[idx] + origin_y, color=color, alpha=1, zorder=2)
                 already_passed = False
 
-
+# Function used to plot the ship domain, which is used in the thesis
 def plot_ship_domain(radius):
     ax, origin_x, origin_y = start_plot()
     center = (0 + origin_x, -50 + origin_y)
@@ -138,7 +148,7 @@ def plot_ship_domain(radius):
     circle = plt.Circle(center, radius, color='black', fill=False, linewidth=2)
     ax.add_artist(circle)
 
-
+# Function to plot a histogram of the situations
 def plot_histogram_situations(situation_dict_in):
     fig, ax = plt.subplots(figsize=(11, 7.166666))
     font_size = 20

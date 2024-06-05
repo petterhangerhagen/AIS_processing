@@ -25,4 +25,4 @@ superPara_img.csv
 /scripts_not_used
 /__pycache__
 /AV_class_functions/__pycache__
-/plotting_results
+/plotting_results/*
