@@ -9,8 +9,6 @@ This scripts reads different scenarios from the colreg_complete_dataset director
 """
 
 import numpy as np
-from AutoVerification import AutoVerification, Vessel
-from scipy.ndimage.filters import gaussian_filter
 import plotting
 import sys
 import matplotlib.pyplot as plt
