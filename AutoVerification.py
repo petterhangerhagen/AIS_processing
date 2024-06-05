@@ -4,7 +4,7 @@ Author: Inger Hagen and Petter Hangerhagen
 Email: petthang@stud.ntnu.no
 Date: July 4th, 2024
 Description: This code is developed by Inger Hagen, it is modifed a bit by Petter Hangerhagen to be able to take radar data as input and not AIS.
-
+All functions not needed in the original code are removed.
 """
 
 import numpy as np
