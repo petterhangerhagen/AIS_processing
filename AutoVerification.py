@@ -186,7 +186,7 @@ class AutoVerification:
         :param obst:
         :param i: Index of sample time where check is to be done
         """
-        print(f"Current angle of vessel {vessel.id}: {np.rad2deg(vessel.state[2, i]):.2f}, at time: {vessel.time_stamps[i]:.2f}")
+        # print(f"Current angle of vessel {vessel.id}: {np.rad2deg(vessel.state[2, i]):.2f}, at time: {vessel.time_stamps[i]:.2f}")
         dist_to_obst = np.empty(2)
         dist_to_obst[0] = obst.state[0, i] - vessel.state[0, i]
         dist_to_obst[1] = obst.state[1, i] - vessel.state[1, i]

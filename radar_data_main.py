@@ -6,6 +6,8 @@ Date: July 4th, 2024
 Description: This is the main file in this codebase. It reads the radar data and creates a list of vessel objects, which is the input to the AutoVerification class.
 From the radar-based dataset all the scenarios containing more than one vessel track is included in the colreg_complete_dataset directory.
 This scripts reads different scenarios from the colreg_complete_dataset directory and creates a list of vessel objects form the radar_data_to_vessels.py file.
+
+In npy_files directory there are two files, which contains the modifed npy files used for prediction comparison.
 """
 
 import numpy as np
@@ -74,14 +76,17 @@ if __name__ == "__main__":
     """
     import_selection = 3
     path_list = scenario_selector(import_selection, colreg_files_dir)
-  
+    
+
+    # path_list = ["npy_files/situations_chosen_for_illustration/colreg_tracks_rosbag_2023-09-02-13-17-29.npy","npy_files/situations_chosen_for_illustration/2023-09-02-13-17-29/colreg_tracks_rosbag_2023-09-02-13-17-29_new0.npy","npy_files/situations_chosen_for_illustration/2023-09-02-13-17-29/colreg_tracks_rosbag_2023-09-02-13-17-29_new1.npy","npy_files/situations_chosen_for_illustration/2023-09-02-13-17-29/colreg_tracks_rosbag_2023-09-02-13-17-29_new2.npy"]
+    # path_list = ["npy_files/situations_chosen_for_illustration/colreg_tracks_rosbag_2023-09-09-14-16-35.npy","npy_files/situations_chosen_for_illustration/2023-09-09-14-16-35/colreg_tracks_rosbag_2023-09-09-14-16-35_new0.npy","npy_files/situations_chosen_for_illustration/2023-09-09-14-16-35/colreg_tracks_rosbag_2023-09-09-14-16-35_new1.npy","npy_files/situations_chosen_for_illustration/2023-09-09-14-16-35/colreg_tracks_rosbag_2023-09-09-14-16-35_new2.npy"]
     r_colregs_2_max=100   #50
     r_colregs_3_max=0     #30
     r_colregs_4_max=0     #4
 
     # # SHIP DOMAIN PLOT
     # plotting.plot_ship_domain(radius=r_colregs_2_max)
-    # plt.savefig("plotting_results/ship_domain.png", dpi=300)
+    # plt.savefig("plotting_results/ship_domain.png", dpi=100)
     # plt.show()
     # sys.exit(1)
 
@@ -147,9 +152,9 @@ if __name__ == "__main__":
                     ax.plot(np.array([AV.vessels[0].state[0, index_of_cpa],AV.vessels[1].state[0, index_of_cpa]]) + origin_x, np.array([AV.vessels[0].state[1, index_of_cpa],AV.vessels[1].state[1, index_of_cpa]])+ origin_y, color='black', linestyle='--')
                     ax.annotate(f"CPA: {min_distance:.2f} m", (AV.vessels[0].state[0, index_of_cpa] + origin_x + 1, 0 + origin_y + 1), fontsize=font_size, color='black')
             save_name = f"plotting_results/plots/plot_{os.path.basename(data_file).split('.')[0].split('_')[-1]}.png"
-            plt.savefig(save_name, dpi=300)
+            plt.savefig(save_name, dpi=100)
             print(f"Saved plot to {save_name}")
-            plt.show()
+            # plt.show()
             plt.close()
       
         if video_statment:
